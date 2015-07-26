@@ -1,0 +1,10 @@
+<RCC>
+    <qresource prefix="/plugins/smart-tools" >
+        <file>icon.png</file>
+        <file>tools/smart_angle_drawing.png</file>
+        <file>tools/awesome_editing.png</file>
+        <file>tools/brainy_spin.png</file>
+        <file>tools/multi_editing.png</file>
+        <file>tools/cursor_rotating.png</file>
+    </qresource>
+</RCC>
