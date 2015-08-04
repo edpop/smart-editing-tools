@@ -1,4 +1,4 @@
-# Smart tools
+# Smart editing tools
 
 ## It's time to get some useful tools!
 
@@ -25,7 +25,7 @@ pretty angle multiple 45 degrees between current and previous segments of your l
 
 * **Multi-editing** ![](tools/multi_editing.png =25x)
 
- Holding down "Ctrl" key, select all needed features.
+ Holding down "Ctrl" key, select all needed features in several layers.
 
  By moving accessory rectangle, move all selected geometries to new place.
 

@@ -7,12 +7,12 @@
 # This file should be included when you package your plugin.# Mandatory items:
 
 [general]
-name=Smart tools
+name=Smart editing tools
 qgisMinimumVersion=2.0
 description=Get some tools!
 about=Smart angles, brainy spining, awesome editing makes your vector drawing happy!
 
-version=1
+version=1.1
 author=Eduard Popov
 email=popov@vl.ru
 
@@ -26,9 +26,9 @@ email=popov@vl.ru
 # Tags are comma separated with spaces allowed
 tags=draw,vector,angle,spin
 
-homepage=http://map.vl.ru
-repository=http://gitorious.dev/map-vl-ru/qgis-mapvlru--tools
-tracker=not required
+homepage=https://github.com/edpop/smart-editing-tools
+repository=http://gitorious.dev/map-vl-ru/qgis-mapvlru-tools
+tracker=https://github.com/edpop/smart-editing-tools/issues
 category=Vector
 icon=icon.png
 # experimental flag
