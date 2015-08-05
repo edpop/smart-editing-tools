@@ -12,7 +12,7 @@ qgisMinimumVersion=2.0
 description=Get some tools!
 about=Smart angles, brainy spining, awesome editing makes your vector drawing happy!
 
-version=1.1
+version=1.2
 author=Eduard Popov
 email=popov@vl.ru
 
@@ -27,7 +27,7 @@ email=popov@vl.ru
 tags=draw,vector,angle,spin
 
 homepage=https://github.com/edpop/smart-editing-tools
-repository=http://gitorious.dev/map-vl-ru/qgis-mapvlru-tools
+repository=https://github.com/edpop/smart-editing-tools
 tracker=https://github.com/edpop/smart-editing-tools/issues
 category=Vector
 icon=icon.png

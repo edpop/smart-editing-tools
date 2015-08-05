@@ -25,6 +25,31 @@ def distancePS(p,segment):
         return sqrt(p.x()**2+p.y()**2)
     else: return abs(p.y())
 
+def pointOnSegment(p, segment):
+    Tangle = calcAngle(segment[1],segment[0])
+    [p,segment[1]] = moveCoords(segment[0],[p,segment[1]])
+    [p,segment[1]] = rotateCoords(-Tangle,[p,segment[1]])
+    if p.x()>segment[1].x():
+        p = segment[1]
+    elif p.x()<0:
+        p = QgsPoint(0,0)
+    else: p = QgsPoint(p.x(),0)
+    [p] = rotateCoords(Tangle,[p])
+    [p] = moveCoords(segment[0],[p],reverse=-1)
+
+    return p
+
+def pointOnLine(p, line):
+    Tangle = calcAngle(line[1],line[0])
+    [p] = moveCoords(line[0],[p])
+    [p] = rotateCoords(-Tangle,[p])
+
+    p = QgsPoint(p.x(),0)
+
+    [p] = rotateCoords(Tangle,[p])
+    [p] = moveCoords(line[0],[p],reverse=-1)
+
+    return p
 
 def calcAngle(p1, p2):
         """

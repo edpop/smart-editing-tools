@@ -1,5 +1,5 @@
 #/***************************************************************************
-# Smart_tools
+# Smart_editing_tools
 #
 # Get some tools!
 #							 -------------------
@@ -38,17 +38,16 @@ LOCALES =
 # translation
 SOURCES = \
 	__init__.py \
-	smart_tools.py \
-	smart_tools_dialog.py
+	smart_editing_tools.py \
+	smart_editing_tools_dialog.py
 
-PLUGINNAME = Smart_tools
+PLUGINNAME = Smart_editing_tools
 
 PY_FILES = \
-	smart_tools.py \
-	smart_tools_dialog.py \
+	smart_editing_tools.py \
 	__init__.py
 
-UI_FILES = smart_tools_dialog_base.ui
+UI_FILES =
 
 EXTRAS = icon.png metadata.txt
 

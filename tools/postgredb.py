@@ -1,4 +1,4 @@
-#from PyQt4.QtGui import *
+# -*- coding: utf-8 -*-
 import psycopg2
 
 class postgreDB():

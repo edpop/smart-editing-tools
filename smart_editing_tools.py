@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 /***************************************************************************
- Smart_tools
+ Smart_editing_tools
                                  A QGIS plugin
  Get some tools!
                               -------------------
@@ -26,7 +26,6 @@ from qgis.core import *
 from qgis.gui import *
 # Initialize Qt resources from file resources.py
 import resources
-# Import the code for the dialog
 
 import os.path
 
@@ -35,7 +34,7 @@ from tools.awesome_editing import *
 from tools.brainy_spin import *
 from tools.multi_editing import *
 
-class Smart_tools:
+class Smart_editing_tools:
     """QGIS Plugin Implementation."""
 
     def __init__(self, iface):
@@ -58,7 +57,7 @@ class Smart_tools:
         locale_path = os.path.join(
             self.plugin_dir,
             'i18n',
-            'smart-tools_{}.qm'.format(locale))
+            'smart-editing-tools_{}.qm'.format(locale))
         if os.path.exists(locale_path):
             self.translator = QTranslator()
             self.translator.load(locale_path)
@@ -68,11 +67,12 @@ class Smart_tools:
 
         # Declare instance attributes
         self.actions = []
-        self.name = self.tr(u'&Smart tools')
-        self.menu = self.iface.vectorMenu().addMenu(QIcon(":/plugins/smart-tools/icon.png"),self.name)
-        self.toolbar = self.iface.addToolBar(u'Smart_tools')
-        self.toolbar.setObjectName(u'Smart_tools')
+        self.name = self.tr(u'&Smart editing tools')
+        self.menu = self.iface.vectorMenu().addMenu(QIcon(":/plugins/smart-editing-tools/icon.png"),self.name)
+        self.toolbar = self.iface.addToolBar(u'Smart_editing_tools')
+        self.toolbar.setObjectName(u'Smart_editing_tools')
         self.oldTool = None
+        self.disconnection = None
 
     # noinspection PyMethodMayBeStatic
     def tr(self, message):
@@ -87,7 +87,7 @@ class Smart_tools:
         :rtype: QString
         """
         # noinspection PyTypeChecker,PyArgumentList,PyCallByClass
-        return QCoreApplication.translate('Smart_tools', message)
+        return QCoreApplication.translate('Smart_editing_tools', message)
 
 
     def add_action(
@@ -170,7 +170,7 @@ class Smart_tools:
 
         #Smart angles
         self.add_action(
-            ':/plugins/smart-tools/tools/smart_angle_drawing.png',
+            ':/plugins/smart-editing-tools/tools/smart_angle_drawing.png',
             text=self.tr(u'Smart angle drawing'),
             callback=self.SmartAngleInit,
             add_to_menu = True,
@@ -180,7 +180,7 @@ class Smart_tools:
 
         #Awesome editing
         self.add_action(
-            ':/plugins/smart-tools/tools/awesome_editing.png',
+            ':/plugins/smart-editing-tools/tools/awesome_editing.png',
             text=self.tr(u'Awesome editing'),
             callback=self.AgewomeEditingInit,
             add_to_menu = True,
@@ -190,7 +190,7 @@ class Smart_tools:
 
         #Brainy spin
         self.add_action(
-            ':/plugins/smart-tools/tools/brainy_spin.png',
+            ':/plugins/smart-editing-tools/tools/brainy_spin.png',
             text=self.tr(u'Brainy spin'),
             callback=self.BrainySpinInit,
             add_to_menu = True,
@@ -200,28 +200,29 @@ class Smart_tools:
 
         #Multi rotate
         self.add_action(
-            ':/plugins/smart-tools/tools/multi_editing.png',
+            ':/plugins/smart-editing-tools/tools/multi_editing.png',
             text=self.tr(u'Multi-editing'),
             callback=self.MultiEditingInit,
             add_to_menu = True,
             whats_this="MultiEditing",
             parent=self.iface.mainWindow())
-        self.MultiEditing_tool = MultiEditingTool(self.iface)
+        self.MultiEditing_tool = MultiEditingTool(self.iface, self)
 
-        QObject.connect(self.canvas, SIGNAL("mapToolSet(QgsMapTool*)"), self.deactivate)
-        QObject.connect(self.iface, SIGNAL("currentLayerChanged(QgsMapLayer*)"), self.toggle)
+        self.canvas.mapToolSet.connect(self.deactivate)
+        self.iface.currentLayerChanged.connect(self.toggle)
         self.toggle()
 
 
     def unload(self):
-        """Removes the plugin menu item and icon from QGIS GUI."""
+        self.canvas.mapToolSet.disconnect(self.deactivate)
+        self.iface.currentLayerChanged.disconnect(self.toggle)
+        #Removes the plugin menu item and icon from QGIS GUI.
         for action in self.actions:
             self.iface.removePluginVectorMenu(
-                self.tr(u'&Smart tools'),
+                self.tr(u'&Smart editing tools'),
                 action)
             self.iface.removeToolBarIcon(action)
-        # remove the toolbar
-        del self.toolbar
+
         self.iface.vectorMenu().removeAction(self.menu.menuAction())
 
         self.canvas.unsetMapTool(self.SmartAngle_tool)
@@ -229,82 +230,27 @@ class Smart_tools:
         self.canvas.unsetMapTool(self.BrainySpin_tool)
         self.canvas.unsetMapTool(self.MultiEditing_tool)
 
+        # remove the toolbar
+        del self.toolbar
 
     def deactivate(self):
         for action in self.actions:
             action.setChecked(False)
 
-        QObject.disconnect(self.SmartAngle_tool, SIGNAL("rbFinished(PyQt_PyObject)"), self.createFeature)
-
-
-    def createFeature(self, geom):
-        settings = QSettings()
-        mc = self.canvas
-        layer = mc.currentLayer()
-        renderer = mc.mapSettings()
-        layerCRSSrsid = layer.crs().srsid()
-        projectCRSSrsid = renderer.destinationCrs().srsid()
-        provider = layer.dataProvider()
-        f = QgsFeature()
-
-        #On the Fly reprojection.
-        if layerCRSSrsid != projectCRSSrsid:
-            #Popov: If wrong CRS - error
-            geom.transform(QgsCoordinateTransform(projectCRSSrsid, layerCRSSrsid))
-
-        # Line or Polygon
-        if layer.geometryType() == 2:
-            f.setGeometry(geom)
-        else:
-            f.setGeometry(geom.convertToType(1, False))
-
-        # add attribute fields to feature
-        fields = layer.pendingFields()
-
-        # vector api change update
-        f.initAttributes(fields.count())
-        for i in range(fields.count()):
-            f.setAttribute(i,provider.defaultValue(i))
-
-        disable_attributes = settings.value( "/qgis/digitizing/disable_enter_attribute_values_dialog", False, type=bool)
-
-        if not disable_attributes:
-            dlg = QgsAttributeDialog(layer, f, False)
-            dlg.setIsAddDialog(True)
-            dlg.dialog().exec_()
-        """
-        if disable_attributes:
-            cancel = 1
-        else:
-            dlg = QgsAttributeDialog(layer, f, False)
-            dlg.setIsAddDialog(True)
-            if not dlg.dialog().exec_():
-                cancel = 0
-            else:
-                layer.destroyEditCommand()
-                cancel = 1
-
-        if cancel == 1:
-            f.setAttributes(dlg.feature().attributes())
-            layer.addFeature(f)
-            layer.endEditCommand()
-        """
-
-        mc.refresh()
-
-
     def toggle(self):
-        mc = self.canvas
-        layer = mc.currentLayer()
+        layer = self.canvas.currentLayer()
+        if self.disconnection:
+            self.disconnection()
         #Decide whether the plugin button/menu is enabled or disabled
-        if layer <> None:
+        if layer is not None and layer.type() == QgsMapLayer.VectorLayer:
             if (layer.isEditable() and (layer.geometryType() == 2 or layer.geometryType() == 1)):
                 for action in self.actions:
                     if action.whatsThis() in ["SmartAngle","AwesomeEditing","BrainySpin"]:
                         action.setEnabled(True)
 
-                QObject.connect(layer,SIGNAL("editingStopped()"),self.toggle)
-                QObject.disconnect(layer,SIGNAL("editingStarted()"),self.toggle)
+                layer.editingStopped.connect(self.toggle)
+                self.disconnection = lambda :layer.editingStopped.disconnect(self.toggle)
+
             else:
                 if layer.type() <> 0:
                     if self.canvas.mapTool() <> self.MultiEditing_tool:
@@ -317,10 +263,11 @@ class Smart_tools:
                         action.setEnabled(False)
                         action.setChecked(False)
 
-                QObject.connect(layer,SIGNAL("editingStarted()"),self.toggle)
-                QObject.disconnect(layer,SIGNAL("editingStopped()"),self.toggle)
+                layer.editingStarted.connect(self.toggle)
+                self.disconnection = lambda :layer.editingStarted.disconnect(self.toggle)
 
         else:
+            self.disconnection = None
             for action in self.actions:
                 if action.whatsThis() in ["SmartAngle","AwesomeEditing","BrainySpin"]:
                     action.setEnabled(False)
@@ -334,13 +281,18 @@ class Smart_tools:
             else:
                 action.setChecked(False)
 
+    def setTool(self,tool):
+        oldTool = self.canvas.mapTool()
+        if oldTool not in [self.SmartAngle_tool,self.AwesomeEditing_tool,self.BrainySpin_tool,self.MultiEditing_tool]:
+            self.oldTool = oldTool
+        self.canvas.setMapTool(tool)
+
     #############
     #Smart angle#
     #############
     def SmartAngleInit(self):
         self.setTool(self.SmartAngle_tool)
         self.pushToolButton("SmartAngle")
-        QObject.connect(self.SmartAngle_tool, SIGNAL("rbFinished(PyQt_PyObject)"), self.createFeature)
 
     #################
     #Awesome editing#
@@ -362,9 +314,3 @@ class Smart_tools:
     def MultiEditingInit(self):
         self.setTool(self.MultiEditing_tool)
         self.pushToolButton("MultiEditing")
-
-    def setTool(self,tool):
-        oldTool = self.canvas.mapTool()
-        if oldTool not in [self.SmartAngle_tool,self.AwesomeEditing_tool,self.BrainySpin_tool,self.MultiEditing_tool]:
-            self.oldTool = oldTool
-        self.canvas.setMapTool(tool)

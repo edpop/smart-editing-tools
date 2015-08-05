@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 /***************************************************************************
- Smart_tools
+ Smart_editing_tools
                                  A QGIS plugin
 
 
@@ -39,15 +39,21 @@ class SmartAngleTool(QgsMapTool):
         QgsMapTool.__init__(self,self.canvas)
         self.geometryType = -1
         self.nbPoints = 0
-        self.rb = None
-        self.PLArb = None
-        self.SADrb = None
-        self.snapRb = None
+
+        self.rb = self.rbInit(QColor(22,139,136))
+        self.rb.setBrushStyle(Qt.Dense7Pattern)
+        self.rb.setFillColor(QColor(192,168,70))
+
+        self.PLArb = self.rbInit(QColor(255,0,0), Qt.DashLine)
+
+        self.SADrb = self.rbInit(QColor(0,0,255), Qt.DashLine)
+
+        self.snapRb = self.rbInit(QColor(0,255,0),width=2)
+
         self.points = []
         self.length = 0
         self.mShift = None
         self.TAnb = 8 # ways to click with Shift
-        #our own fancy cursor
         self.cursor = QCursor(QPixmap(["16 16 3 1",
                                       "      c None",
                                       ".     c #4B126B",
@@ -69,8 +75,7 @@ class SmartAngleTool(QgsMapTool):
                                       "       +.+      ",
                                       "        .       "]))
 
-        # snap layers list
-        self.snapper = None # the snapper used to get snapped points from the map canvas. We can't use
+        self.snapper = None
 
 
     def isZoomTool(self):
@@ -93,7 +98,6 @@ class SmartAngleTool(QgsMapTool):
             else:
                 self.rb.setToGeometry(QgsGeometry.fromPolygon([self.points]), None)
             event.ignore()
-            return
 
     def keyReleaseEvent(self,  event):
         if event.key() == Qt.Key_Shift:
@@ -101,27 +105,16 @@ class SmartAngleTool(QgsMapTool):
         if event.key() == Qt.Key_Escape:
             self.nbPoints = 0
             self.points = []
-            if self.rb:
-                self.rb.reset(True)
-            self.rb=None
-            if self.PLArb:
-                self.PLArb.reset(True)
-            self.PLArb=None
-            if self.SADrb:
-                self.SADrb.reset(True)
-            self.SADrb=None
+            self.rb.reset(True)
+            self.PLArb.reset(True)
+            self.SADrb.reset(True)
 
             self.canvas.refresh()
-
-            return
 
     def canvasPressEvent(self,event):
         if event.button() == 1:
             layer = self.canvas.currentLayer()
-            if self.nbPoints == 0:
-                self.rb = self.rbInit(QColor(22,139,136))
-                self.rb.setBrushStyle(Qt.Dense7Pattern)
-                self.rb.setFillColor(QColor(192,168,70))
+
             point = self.calcCurrPoint(event.pos())
             pointMap = self.toMapCoordinates(layer, point)
             if self.nbPoints > 0:
@@ -138,28 +131,19 @@ class SmartAngleTool(QgsMapTool):
                     geom = QgsGeometry.fromPolygon([self.points])
                 self.nbPoints = 0
                 self.points = []
-                self.emit(SIGNAL("rbFinished(PyQt_PyObject)"), geom)
+                self.createFeature(geom)
                 self.rb.reset(True)
-                self.rb=None
-                if self.PLArb:
-                    self.PLArb.reset(True)
-                    self.PLArb=None
-                if self.SADrb:
-                    self.SADrb.reset(True)
-                    self.SADrb=None
+                self.PLArb.reset(True)
+                self.SADrb.reset(True)
+
                 self.canvas.refresh()
             else:
                 self.nbPoints = 0
                 self.points = []
-                if self.rb:
-                    self.rb.reset(True)
-                self.rb=None
-                if self.PLArb:
-                    self.PLArb.reset(True)
-                self.PLArb=None
-                if self.SADrb:
-                    self.SADrb.reset(True)
-                self.SADrb=None
+                self.rb.reset(True)
+                self.PLArb.reset(True)
+                self.SADrb.reset(True)
+
                 self.canvas.refresh()
 
     def canvasMoveEvent(self,event):
@@ -175,6 +159,62 @@ class SmartAngleTool(QgsMapTool):
             self.rb.setToGeometry(QgsGeometry.fromPolygon([self.points+[currpoint]]), layer)
 
 
+    def createFeature(self, geom):
+        settings = QSettings()
+        mc = self.canvas
+        layer = mc.currentLayer()
+        renderer = mc.mapSettings()
+        layerCRSSrsid = layer.crs().srsid()
+        projectCRSSrsid = renderer.destinationCrs().srsid()
+        provider = layer.dataProvider()
+        f = QgsFeature()
+
+        #On the Fly reprojection.
+        if layerCRSSrsid != projectCRSSrsid:
+            #Popov: If wrong CRS - error
+            geom.transform(QgsCoordinateTransform(projectCRSSrsid, layerCRSSrsid))
+
+        # Line or Polygon
+        if layer.geometryType() == 2:
+            f.setGeometry(geom)
+        else:
+            f.setGeometry(geom.convertToType(1, False))
+
+        # add attribute fields to feature
+        fields = layer.pendingFields()
+
+        # vector api change update
+        f.initAttributes(fields.count())
+        for i in range(fields.count()):
+            f.setAttribute(i,provider.defaultValue(i))
+
+        disable_attributes = settings.value( "/qgis/digitizing/disable_enter_attribute_values_dialog", False, type=bool)
+
+        if not disable_attributes:
+            dlg = QgsAttributeDialog(layer, f, False)
+            dlg.setIsAddDialog(True)
+            dlg.dialog().exec_()
+        """
+        if disable_attributes:
+            cancel = 1
+        else:
+            dlg = QgsAttributeDialog(layer, f, False)
+            dlg.setIsAddDialog(True)
+            if not dlg.dialog().exec_():
+                cancel = 0
+            else:
+                layer.destroyEditCommand()
+                cancel = 1
+
+        if cancel == 1:
+            f.setAttributes(dlg.feature().attributes())
+            layer.addFeature(f)
+            layer.endEditCommand()
+        """
+
+        mc.refresh()
+
+
     def calcCurrPoint(self,eventPos):
         snapPoint, snapSegment = self._toMapSnap(eventPos)
         if snapPoint is not None:
@@ -185,9 +225,9 @@ class SmartAngleTool(QgsMapTool):
             currpoint = snapSegment[0]
             self.drawSnapAccessory(currpoint,distance(currpoint,self.toMapCoordinates(eventPos)))
             return currpoint
-        elif self.snapRb:
-                self.snapRb.reset(True)
-                self.snapRb=None
+        else:
+            self.snapRb.reset(True)
+
         currpoint = self.toMapCoordinates(eventPos)
         shiftPoint = None
         PLApoint = None
@@ -215,26 +255,18 @@ class SmartAngleTool(QgsMapTool):
             currpoint = PLApoint
 
         if PLApoint:
-            if not self.PLArb:
-                self.PLArb = self.rbInit(QColor(255,0,0), Qt.DashLine)
             self.PLArb.setToGeometry(QgsGeometry.fromPolyline([self.points[0],currpoint]), self.canvas.currentLayer())
         elif self.PLArb:
             self.PLArb.reset(True)
-            self.PLArb=None
         if shiftPoint:
-            if not self.SADrb:
-                self.SADrb = self.rbInit(QColor(0,0,255), Qt.DashLine)
             self.SADrb.setToGeometry(QgsGeometry.fromPolyline([self.points[self.nbPoints-1],currpoint]), self.canvas.currentLayer())
         elif self.SADrb:
             self.SADrb.reset(True)
-            self.SADrb=None
 
         return currpoint
 
 
     def drawSnapAccessory(self,currpoint,r):
-        if not self.snapRb:
-                self.snapRb = self.rbInit(QColor(0,255,0),width=2)
         self.snapRb.setToGeometry(QgsGeometry.fromPolyline([QgsPoint(currpoint.x()+r,currpoint.y()),
                                                                 QgsPoint(currpoint.x(),currpoint.y()+r),
                                                                 QgsPoint(currpoint.x()-r,currpoint.y()),
@@ -264,18 +296,10 @@ class SmartAngleTool(QgsMapTool):
     def deactivate(self):
         self.nbPoints = 0
         self.points = []
-        if self.rb:
-            self.rb.reset(True)
-        self.rb=None
-        if self.PLArb:
-            self.PLArb.reset(True)
-        self.PLArb=None
-        if self.SADrb:
-            self.SADrb.reset(True)
-        self.SADrb=None
-        if self.snapRb:
-            self.snapRb.reset(True)
-        self.snapRb=None
+        self.rb.reset()
+        self.PLArb.reset()
+        self.SADrb.reset()
+        self.snapRb.reset()
 
 
         self.canvas.refresh()

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 /***************************************************************************
- Smart_tools
+ Smart_editing_tools
                                  A QGIS plugin
 
 
@@ -30,14 +30,13 @@ from qgis.core import *
 from qgis.gui import *
 from math import *
 from common import *
-from layers import *
 
 class BrainySpinTool(QgsMapTool):
     def __init__(self, iface):
         self.iface = iface
         self.canvas = self.iface.mapCanvas()
         QgsMapTool.__init__(self,self.canvas)
-        #self.data = []
+        self.layer = None
         self.mouseClicked = None
         self.fId = None
         self.p1 = None
@@ -57,8 +56,6 @@ class BrainySpinTool(QgsMapTool):
         self.fsrb.setWidth(2)
         self.fsrb.setLineStyle(Qt.DashLine)
         self.fsrb.setBrushStyle(Qt.NoBrush)
-        #self.data = [] #[ [layer, [QgsPoint,...,] ] ,..., ]
-        self.layers = None
         self.cursor = QCursor(QPixmap(["19 19 3 1",
                                       "      c None",
                                       ".     c #4B126B",
@@ -94,23 +91,14 @@ class BrainySpinTool(QgsMapTool):
         return True
 
     def activate(self):
+        self.layer = self.canvas.currentLayer()
         self.canvas.setCursor(self.cursor)
-        #QObject.connect(self.canvas, SIGNAL("scaleChanged(double)"), self.loadData)
-        #self.loadData()
-        QObject.connect(self.iface.legendInterface(), SIGNAL("itemRemoved()"), self.reloadLayersDB)
-        QObject.connect(self.iface.legendInterface(), SIGNAL("itemAdded(QModelIndex)"), self.reloadLayersDB)
-        self.reloadLayersDB()
 
     def deactivate(self):
         self.rb.reset(True)
         self.srb.reset(True)
         self.fsrb.reset(True)
-        #QObject.disconnect(self.canvas, SIGNAL("scaleChanged(double)"), self.loadData)
-        QObject.disconnect(self.iface.legendInterface(), SIGNAL("itemRemoved()"), self.reloadLayersDB)
-        QObject.disconnect(self.iface.legendInterface(), SIGNAL("itemAdded(QModelIndex)"), self.reloadLayersDB)
 
-    def reloadLayersDB(self):
-        self.layers = layersDB(self.iface.legendInterface().layers())
 
     def width(self):
         return self.iface.mapCanvas().mapUnitsPerPixel()*10
@@ -149,39 +137,13 @@ class BrainySpinTool(QgsMapTool):
             if not self.p1 and not self.vertex:
                 return
             point = self.toMapCoordinates(event.pos())
-            layer = self.iface.activeLayer()
-            newPlist = self.getNewPlist(point)
-            layer.beginEditCommand('brainy_spin')
+            newPlist = self.getNewPlist(self.pList,point)
+            self.layer.beginEditCommand('brainy_spin')
             for i in range(len(newPlist)):
-                layer.moveVertex(newPlist[i].x(),newPlist[i].y(),self.fId,i)
-            layer.endEditCommand()
+                self.layer.moveVertex(newPlist[i].x(),newPlist[i].y(),self.fId,i)
+            self.layer.endEditCommand()
             self.resetFeature(point)
             self.canvas.refresh()
-            #self.loadData()
-
-    """
-    def loadData(self):
-        #unused
-        return
-        self.data = []
-        for layer in self.iface.legendInterface().layers():
-            if layer.type() <> QgsMapLayer.VectorLayer:
-                continue
-            if layer.geometryType() <> 1 and layer.geometryType() <> 2:
-                continue
-            rect = QgsRectangle(self.toMapCoordinates(QPoint(0,0)),
-                                self.toMapCoordinates(QPoint(self.canvas.size().width(),self.canvas.size().height())))
-            data = []
-            for feature in layer.getFeatures(QgsFeatureRequest().setFilterRect(self.toLayerCoordinates(layer,rect))):
-                geom = feature.geometry()
-                if geom.type()==1:
-                    data.append([feature.id(),convertToMapCoordinates(self,layer,geom.asPolyline())])
-                elif geom.type() == 2:
-                    for polygon in geom.asPolygon():
-                        data.append([feature.id(),convertToMapCoordinates(self,layer,polygon[:-1])])
-            if len(data) > 0:
-                self.data.append([layer,data])
-    """
 
 
     def resetFeature(self,point):
@@ -191,191 +153,96 @@ class BrainySpinTool(QgsMapTool):
         self.pList = []
         self.vertex = None
         width = self.width()
-        layer = self.iface.activeLayer()
-        #l = self.layers.findLayer(layer)
-        l = False
-        if not l:
-            if layer.type() <> QgsMapLayer.VectorLayer or not layer.hasGeometryType():
-                return
-            rect = QgsRectangle(QgsPoint(point.x()+width,point.y()+width),
-                                QgsPoint(point.x()-width,point.y()-width))
-            featureIt = layer.getFeatures(QgsFeatureRequest().setFilterRect(self.toLayerCoordinates(layer,rect)))
-
-            dS = None
-            dP = None
-            for feature in featureIt:
-                geom = feature.geometry()
-                if not geom:
-                    continue
-                if geom.type()==1:
-                    pList = geom.asPolyline()
-                elif geom.type() == 2:
-                    for polygon in geom.asPolygon():
-                        pList = polygon[:-1]
-                else: continue
-                pList = convertToMapCoordinates(self,layer,pList)
-                if layer.geometryType() == 1: s=1
-                else: s=0
-                for i in range(len(pList)):#check vertex
-                    Td = distance(point,pList[i])
-                    if dP is  None:
-                        if Td<width:
-                            self.p1 = None
-                            self.p2 = None
-                            dP = Td
-                            self.pList = pList
-                            self.fId = feature.id()
-                            self.vertex = pList[i]
-                    elif Td<dP:
-                            dP=Td
-                            self.pList = pList
-                            self.fId = feature.id()
-                            self.vertex = pList[i]
-                if self.vertex:
-                    continue
-                for i in range(s,len(pList)):#check segment
-                    Td = distancePS(point,[pList[i-1],pList[i]])
-                    if dS is  None:
-                        if Td<width:
-                            dS = Td
-                            self.pList = pList
-                            self.fId = feature.id()
-                            self.p1, self.p2 = pList[i-1],pList[i]
-                    elif Td<dS:
-                            dS=Td
-                            self.pList = pList
-                            self.fId = feature.id()
-                            self.p1, self.p2 = pList[i-1],pList[i]
-        """
-        else:
-            rows = l.db.query(
-                "DROP TABLE IF EXISTS temppoint;"
-                "CREATE TEMP TABLE temppoint AS (SELECT ST_PointFromText('"+point.wellKnownText()+"', "+l.srid+") point);"
-                "SELECT ST_AsText(geom) geom, id FROM ("
-                    "SELECT ST_Distance(b.the_geom,t.point) dist, b.the_geom geom, b.id id FROM "+l.table+" b, temppoint t "
-                    "WHERE b.the_geom && 'BOX("+str(point.x()-width)+" "+str(point.y()-width)+","+str(point.x()+width)+" "+str(point.y()+width)+")'::box2d"
-                    ") AS s1 "
-                "WHERE dist < "+str(width)+" "
-                "ORDER BY dist "
-                "LIMIT 1"
-                )
-            l.db.query("DROP TABLE IF EXISTS temppoint;")
-            dS = None
-            dP = None
-            for row in rows:
-                geom = QgsGeometry.fromWkt(row[0])
-                id = row[1]
-                if geom.type()==1:
-                    pList = geom.asPolyline()
-                elif geom.type() == 2:
-                    for polygon in geom.asPolygon():
-                        pList = polygon[:-1]
-                else: continue
-                pList = convertToMapCoordinates(self,layer,pList)
-                if layer.geometryType() == 1: s=1
-                else: s=0
-                for i in range(len(pList)):#check vertex
-                    Td = distance(point,pList[i])
-                    if dP is  None:
-                        if Td<width:
-                            self.p1 = None
-                            self.p2 = None
-                            dP = Td
-                            self.pList = pList
-                            self.fId = id
-                            self.vertex = pList[i]
-                    elif Td<dP:
-                            dP=Td
-                            self.pList = pList
-                            self.fId = id
-                            self.vertex = pList[i]
-                if self.vertex:
-                    continue
-                for i in range(s,len(pList)):#check segment
-                    Td = distancePS(point,[pList[i-1],pList[i]])
-                    if dS is  None:
-                        if Td<width:
-                            dS = Td
-                            self.pList = pList
-                            self.fId = id
-                            self.p1, self.p2 = pList[i-1],pList[i]
-                    elif Td<dS:
-                            dS=Td
-                            self.pList = pList
-                            self.fId = id
-                            self.p1, self.p2 = pList[i-1],pList[i]
-        """
-        self.rb.reset(True)
-        if not (None in [self.p1,self.p2]):
-            self.rb.setToGeometry(QgsGeometry.fromPolyline([self.p1,self.p2]),layer)
-        elif self.vertex:
-            self.rb.setToGeometry(QgsGeometry.fromPolyline(makeCircle(self.vertex,width,16)),layer)
-
-    """
-    def resetFeatureNotDB(self,point):
-        #unused
-        return
-        self.fId = None
-        self.p1 = None
-        self.p2 = None
-        self.pList = []
-        self.vertex = None
-        width = self.width()
-        layer = self.iface.activeLayer()
         rect = QgsRectangle(QgsPoint(point.x()+width,point.y()+width),
                             QgsPoint(point.x()-width,point.y()-width))
-        featureIt = layer.getFeatures(QgsFeatureRequest().setFilterRect(self.toLayerCoordinates(layer,rect)))
+        featureIt = self.layer.getFeatures(QgsFeatureRequest().setFilterRect(self.toLayerCoordinates(self.layer,rect)))
 
         dS = None
         dP = None
         for feature in featureIt:
             geom = feature.geometry()
+            if not geom:
+                continue
             if geom.type()==1:
                 pList = geom.asPolyline()
+                pList = convertToMapCoordinates(self,self.layer,pList)
+                if self.layer.geometryType() == 1: s=1
+                else: s=0
+                for i in range(len(pList)):#check vertex
+                    Td = distance(point,pList[i])
+                    if dP is  None:
+                        if Td<width:
+                            self.p1 = None
+                            self.p2 = None
+                            dP = Td
+                            self.pList = pList
+                            self.fId = feature.id()
+                            self.vertex = pList[i]
+                        elif Td<dP:
+                            dP=Td
+                            self.pList = pList
+                            self.fId = feature.id()
+                            self.vertex = pList[i]
+                if self.vertex:
+                    continue
+                for i in range(s,len(pList)):#check segment
+                    Td = distancePS(point,[pList[i-1],pList[i]])
+                    if dS is  None:
+                        if Td<width:
+                            dS = Td
+                            self.pList = pList
+                            self.fId = feature.id()
+                            self.p1, self.p2 = pList[i-1],pList[i]
+                        elif Td<dS:
+                            dS=Td
+                            self.pList = pList
+                            self.fId = feature.id()
+                            self.p1, self.p2 = pList[i-1],pList[i]
             elif geom.type() == 2:
+                self.pList = []
                 for polygon in geom.asPolygon():
-                    pList = polygon[:-1]
+                    pList = polygon#[:-1]
+                    pList = convertToMapCoordinates(self,self.layer,pList)
+                    self.pList+= pList
+                    if self.layer.geometryType() == 1: s=1
+                    else: s=0
+                    for i in range(len(pList)):#check vertex
+                        Td = distance(point,pList[i])
+                        if dP is  None:
+                            if Td<width:
+                                self.p1 = None
+                                self.p2 = None
+                                dP = Td
+
+                                self.fId = feature.id()
+                                self.vertex = pList[i]
+                            elif Td<dP:
+                                dP=Td
+
+                                self.fId = feature.id()
+                                self.vertex = pList[i]
+                    if self.vertex:
+                        continue
+                    for i in range(s,len(pList)):#check segment
+                        Td = distancePS(point,[pList[i-1],pList[i]])
+                        if dS is  None:
+                            if Td<width:
+                                dS = Td
+
+                                self.fId = feature.id()
+                                self.p1, self.p2 = pList[i-1],pList[i]
+                            elif Td<dS:
+                                dS=Td
+                                self.fId = feature.id()
+                                self.p1, self.p2 = pList[i-1],pList[i]
             else: continue
-            pList = convertToMapCoordinates(self,layer,pList)
-            if layer.geometryType() == 1: s=1
-            else: s=0
-            for i in range(len(pList)):#check vertex
-                Td = distance(point,pList[i])
-                if dP is  None:
-                    if Td<width:
-                        self.p1 = None
-                        self.p2 = None
-                        dP = Td
-                        self.pList = pList
-                        self.fId = feature.id()
-                        self.vertex = pList[i]
-                elif Td<dP:
-                        dP=Td
-                        self.pList = pList
-                        self.fId = feature.id()
-                        self.vertex = pList[i]
-            if self.vertex:
-                continue
-            for i in range(s,len(pList)):#check segment
-                Td = distancePS(point,[pList[i-1],pList[i]])
-                if dS is  None:
-                    if Td<width:
-                        dS = Td
-                        self.pList = pList
-                        self.fId = feature.id()
-                        self.p1, self.p2 = pList[i-1],pList[i]
-                elif Td<dS:
-                        dS=Td
-                        self.pList = pList
-                        self.fId = feature.id()
-                        self.p1, self.p2 = pList[i-1],pList[i]
+
+
         self.rb.reset(True)
         if not (None in [self.p1,self.p2]):
-            self.rb.setToGeometry(QgsGeometry.fromPolyline([self.p1,self.p2]),layer)
+            self.rb.setToGeometry(QgsGeometry.fromPolyline([self.p1,self.p2]),self.layer)
         elif self.vertex:
-            self.rb.setToGeometry(QgsGeometry.fromPolyline(makeCircle(self.vertex,width,16)),layer)
-    """
-
+            self.rb.setToGeometry(QgsGeometry.fromPolyline(makeCircle(self.vertex,width,16)),self.layer)
 
     def resetSpinFeature(self,point):
         if not self.vertex:
@@ -390,140 +257,59 @@ class BrainySpinTool(QgsMapTool):
             for layer in self.iface.legendInterface().layers():
                 if not legendInterface.isLayerVisible(layer):
                     continue
-                #l = self.layers.findLayer(layer)
-                l = False
-                if not l:
-                    if layer.type() <> QgsMapLayer.VectorLayer or not layer.hasGeometryType():
-                        continue
-                    featureIt = layer.getFeatures(QgsFeatureRequest().setFilterRect(self.toLayerCoordinates(layer,rect)))
-                    for feature in featureIt:
-                        if feature.id() == self.fId:
-                            continue
-                        geom = feature.geometry()
-                        if not geom:
-                            continue
-                        pList = []
-                        if geom.type()==1:
-                            pList = geom.asPolyline()
-                        elif geom.type() == 2:
-                            for polygon in geom.asPolygon():
-                                pList = polygon[:-1]
-                        pList = convertToMapCoordinates(self,layer,pList)
-                        if layer.geometryType() == 1: s=1
-                        else: s=0
-                        for i in range(s,len(pList)):
-                            Td = distancePS(point,[pList[i-1],pList[i]])
-                            if d is  None:
-                                if Td<width:
-                                    d = Td
-                                    self.sp1, self.sp2 = pList[i-1],pList[i]
-                            else:
-                                if Td < d:
-                                    d=Td
-                                    self.sp1, self.sp2 = pList[i-1],pList[i]
-                """
-                else:
-                    rows = l.db.query(
-                        "DROP TABLE IF EXISTS temppoint;"
-                        "CREATE TEMP TABLE temppoint AS (SELECT ST_PointFromText('"+point.wellKnownText()+"', "+l.srid+") point);"
-                        "SELECT ST_AsText(geom) geom, id FROM ("
-                            "SELECT ST_Distance(b.the_geom,t.point) dist, b.the_geom geom, b.id id FROM "+l.table+" b, temppoint t "
-                            "WHERE b.the_geom && 'BOX("+str(point.x()-width)+" "+str(point.y()-width)+","+str(point.x()+width)+" "+str(point.y()+width)+")'::box2d"
-                            ") AS s1 "
-                        "WHERE dist < "+str(width)+" "
-                        "ORDER BY dist "
-                        "LIMIT 1"
-                        )
-                    print(l.qgslayer.name(), l.table, l.db)
-                    l.db.query("DROP TABLE IF EXISTS temppoint;")
-                    for row in rows:
-                        if row[1] == self.fId:
-                            continue
-                        geom = QgsGeometry.fromWkt(row[0])
-                        pList = []
-                        if geom.type()==1:
-                            pList = geom.asPolyline()
-                        elif geom.type() == 2:
-                            for polygon in geom.asPolygon():
-                                pList = polygon[:-1]
-                        pList = convertToMapCoordinates(self,layer,pList)
-                        if layer.geometryType() == 1: s=1
-                        else: s=0
-                        for i in range(s,len(pList)):
-                            Td = distancePS(point,[pList[i-1],pList[i]])
-                            if d is  None:
-                                if Td<width:
-                                    d = Td
-                                self.sp1, self.sp2 = pList[i-1],pList[i]
-                            else:
-                                if Td < d:
-                                    d=Td
-                                    self.sp1, self.sp2 = pList[i-1],pList[i]
-                """
-        self.srb.reset(True)
-        self.fsrb.reset(True)
-        curLayer = self.iface.activeLayer()
-        if not (None in [self.sp1,self.sp2]):
-            self.srb.setToGeometry(QgsGeometry.fromPolyline(convertToLayerCoordinates(self,curLayer,[self.sp1,self.sp2])),curLayer)
-        if curLayer.geometryType() == 1:
-            self.fsrb.setToGeometry(QgsGeometry.fromPolyline(self.getNewPlist(point)),curLayer)
-        else:
-            self.fsrb.setToGeometry(QgsGeometry.fromPolygon([self.getNewPlist(point)]),curLayer)
-
-    """
-    def resetSpinFeatureNotDB(self,point):
-        #unused
-        return
-        if not self.vertex:
-            self.sp1 = None
-            self.sp2 = None
-            width = self.width()
-            rect = QgsRectangle(QgsPoint(point.x()+width,point.y()+width),
-                                QgsPoint(point.x()-width,point.y()-width))
-            d = None
-            legendInterface = self.iface.legendInterface()
-            for layer in legendInterface.layers():
-                if not legendInterface.isLayerVisible(layer) or layer.type()<>QgsMapLayer.VectorLayer:
+                if layer.type() <> QgsMapLayer.VectorLayer or not layer.hasGeometryType():
                     continue
                 featureIt = layer.getFeatures(QgsFeatureRequest().setFilterRect(self.toLayerCoordinates(layer,rect)))
                 for feature in featureIt:
                     if feature.id() == self.fId:
                         continue
                     geom = feature.geometry()
-                    pList = []
+                    if not geom:
+                        continue
                     if geom.type()==1:
                         pList = geom.asPolyline()
+                        pList = convertToMapCoordinates(self,layer,pList)
+                        if layer.geometryType() == 1: s=1
+                        else: s=0
+                        for i in range(s,len(pList)):
+                            Td = distancePS(point,[pList[i-1],pList[i]])
+                            if d is  None:
+                                if Td<width:
+                                    d = Td
+                                    self.sp1, self.sp2 = pList[i-1],pList[i]
+                            else:
+                                if Td < d:
+                                    d=Td
+                                    self.sp1, self.sp2 = pList[i-1],pList[i]
                     elif geom.type() == 2:
                         for polygon in geom.asPolygon():
                             pList = polygon[:-1]
-                    pList = convertToMapCoordinates(self,layer,pList)
-                    if layer.geometryType() == 1: s=1
-                    else: s=0
-                    for i in range(s,len(pList)):
-                        Td = distancePS(point,[pList[i-1],pList[i]])
-                        if d is  None:
-                            if Td<width:
-                                d = Td
-                            self.sp1, self.sp2 = pList[i-1],pList[i]
-                        else:
-                            if Td < d:
-                                d=Td
-                                self.sp1, self.sp2 = pList[i-1],pList[i]
+                            pList = convertToMapCoordinates(self,layer,pList)
+                            if layer.geometryType() == 1: s=1
+                            else: s=0
+                            for i in range(s,len(pList)):
+                                Td = distancePS(point,[pList[i-1],pList[i]])
+                                if d is  None:
+                                    if Td<width:
+                                        d = Td
+                                        self.sp1, self.sp2 = pList[i-1],pList[i]
+                                else:
+                                    if Td < d:
+                                        d=Td
+                                        self.sp1, self.sp2 = pList[i-1],pList[i]
+
         self.srb.reset(True)
         self.fsrb.reset(True)
-        curLayer = self.iface.activeLayer()
         if not (None in [self.sp1,self.sp2]):
-            self.srb.setToGeometry(QgsGeometry.fromPolyline(convertToLayerCoordinates(self,curLayer,[self.sp1,self.sp2])),curLayer)
-        if curLayer.geometryType() == 1:
-            self.fsrb.setToGeometry(QgsGeometry.fromPolyline(self.getNewPlist(point)),curLayer)
+            self.srb.setToGeometry(QgsGeometry.fromPolyline(convertToLayerCoordinates(self,self.layer,[self.sp1,self.sp2])),self.layer)
+        if self.layer.geometryType() == 1:
+            self.fsrb.setToGeometry(QgsGeometry.fromPolyline(self.getNewPlist(self.pList,point)),self.layer)
         else:
-            self.fsrb.setToGeometry(QgsGeometry.fromPolygon([self.getNewPlist(point)]),curLayer)
-    """
+            self.fsrb.setToGeometry(QgsGeometry.fromPolygon([self.getNewPlist(self.pList,point)]),self.layer)
 
-
-    def getNewPlist(self,point=None):
+    def getNewPlist(self,pList,point=None):
         if self.vertex:
-            center = self.centerGeom(self.pList)
+            center = self.centerGeom(pList)
         else:
             center = self.centerGeom([self.p1,self.p2])
         if not None in [self.sp1,self.sp2]:
@@ -537,10 +323,10 @@ class BrainySpinTool(QgsMapTool):
             gamma = calcAngle(center,point)-calcAngle(center,self.vertex)
         else:
             gamma = calcAngle(center,point)-pi/2-calcAngle(self.p1,self.p2)
-        nPlist = moveCoords(center, self.pList)
+        nPlist = moveCoords(center, pList)
         nPlist = rotateCoords(gamma,nPlist)
         nPlist = moveCoords(center, nPlist, -1)
-        nPlist = convertToLayerCoordinates(self,self.iface.activeLayer(),nPlist)
+        nPlist = convertToLayerCoordinates(self,self.layer,nPlist)
         return nPlist
 
 

@@ -1,4 +1,4 @@
-SOURCES = smart_tools.py\
+SOURCES = smart_editing_tools.py\
           tools/smart_angle_drawing.py\
           tools/awesome_editing.py\
           tools/brainy_spin.py\

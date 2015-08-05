@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 /***************************************************************************
- Smart_tools
+ Smart_editing_tools
                                  A QGIS plugin
  Get some tools!
                              -------------------
@@ -25,11 +25,11 @@
 
 # noinspection PyPep8Naming
 def classFactory(iface):  # pylint: disable=invalid-name
-    """Load Smart_tools class from file Smart_tools.
+    """Load Smart_editing_tools class from file Smart_editing_tools.
 
     :param iface: A QGIS interface instance.
     :type iface: QgsInterface
     """
     #
-    from .smart_tools import Smart_tools
-    return Smart_tools(iface)
+    from .smart_editing_tools import Smart_editing_tools
+    return Smart_editing_tools(iface)
