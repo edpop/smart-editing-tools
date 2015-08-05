@@ -1,10 +1,10 @@
-# This file contains metadata for your plugin. Since
-# version 2.0 of QGIS this is the proper way to supply
-# information about a plugin. The old method of 
-# embedding metadata in __init__.py will 
-# is no longer supported since version 2.0.
+; This file contains metadata for your plugin. Since
+; version 2.0 of QGIS this is the proper way to supply
+; information about a plugin. The old method of
+; embedding metadata in __init__.py will
+; is no longer supported since version 2.0.
 
-# This file should be included when you package your plugin.# Mandatory items:
+; This file should be included when you package your plugin.# Mandatory items:
 
 [general]
 name=Smart editing tools
@@ -16,14 +16,21 @@ version=1.2
 author=Eduard Popov
 email=popov@vl.ru
 
-# End of mandatory metadata
+; End of mandatory metadata
 
-# Recommended items:
+; Recommended items:
 
-# Uncomment the following line and add your changelog:
-#changelog=text
+; Uncomment the following line and add your changelog:
+changelog=1.2
+  - Added new features for multi-editing tool:
+    - Horizontal/vertical flip
+    - Resize
+    - Skew
+    - Multi -copy and -paste
+    - Commit changes and rollback for layers of selected features
+  - Small optimisation and bugs fixing for other tools
 
-# Tags are comma separated with spaces allowed
+; Tags are comma separated with spaces allowed
 tags=draw,vector,angle,spin
 
 homepage=https://github.com/edpop/smart-editing-tools
@@ -31,8 +38,8 @@ repository=https://github.com/edpop/smart-editing-tools
 tracker=https://github.com/edpop/smart-editing-tools/issues
 category=Vector
 icon=icon.png
-# experimental flag
+; experimental flag
 experimental=False
 
-# deprecated flag (applies to the whole plugin, not just a single version)
+; deprecated flag (applies to the whole plugin, not just a single version)
 deprecated=False
