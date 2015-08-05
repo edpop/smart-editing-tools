@@ -241,9 +241,10 @@ class Smart_editing_tools:
         layer = self.canvas.currentLayer()
         if self.disconnection:
             self.disconnection()
+            self.disconnection = None
         #Decide whether the plugin button/menu is enabled or disabled
-        if layer is not None and layer.type() == QgsMapLayer.VectorLayer:
-            if (layer.isEditable() and (layer.geometryType() == 2 or layer.geometryType() == 1)):
+        if layer is not None:
+            if layer.type() == QgsMapLayer.VectorLayer and layer.isEditable() and (layer.geometryType() == 2 or layer.geometryType() == 1):
                 for action in self.actions:
                     if action.whatsThis() in ["SmartAngle","AwesomeEditing","BrainySpin"]:
                         action.setEnabled(True)
@@ -252,7 +253,10 @@ class Smart_editing_tools:
                 self.disconnection = lambda :layer.editingStopped.disconnect(self.toggle)
 
             else:
-                if layer.type() <> 0:
+                if layer.type() == QgsMapLayer.VectorLayer:
+                    layer.editingStarted.connect(self.toggle)
+                    self.disconnection = lambda :layer.editingStarted.disconnect(self.toggle)
+                else:
                     if self.canvas.mapTool() <> self.MultiEditing_tool:
                         self.canvas.unsetMapTool(self.canvas.mapTool())
                         if self.oldTool:
@@ -262,9 +266,6 @@ class Smart_editing_tools:
                     if action.whatsThis() in ["SmartAngle","AwesomeEditing","BrainySpin"]:
                         action.setEnabled(False)
                         action.setChecked(False)
-
-                layer.editingStarted.connect(self.toggle)
-                self.disconnection = lambda :layer.editingStarted.disconnect(self.toggle)
 
         else:
             self.disconnection = None
