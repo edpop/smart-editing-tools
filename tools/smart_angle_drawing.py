@@ -87,6 +87,27 @@ class SmartAngleTool(QgsMapTool):
     def isEditTool(self):
         return True
 
+    def activate(self):
+        self.canvas.setCursor(self.cursor)
+        self.updateSnapper()
+        self.canvas.layersChanged.connect(self.updateSnapper)
+        self.canvas.scaleChanged.connect(self.updateSnapper)
+        QgsProject.instance().readProject.connect(self.updateSnapper)
+        QgsProject.instance().snapSettingsChanged.connect(self.updateSnapper)
+
+    def deactivate(self):
+        self.nbPoints = 0
+        self.points = []
+        self.rb.reset()
+        self.PLArb.reset()
+        self.SADrb.reset()
+        self.snapRb.reset()
+
+        self.canvas.layersChanged.disconnect(self.updateSnapper)
+        self.canvas.scaleChanged.disconnect(self.updateSnapper)
+        QgsProject.instance().readProject.disconnect(self.updateSnapper)
+        QgsProject.instance().snapSettingsChanged.disconnect(self.updateSnapper)
+
     def keyPressEvent(self,  event):
         if event.key() == Qt.Key_Shift:
             self.mShift = True
@@ -105,11 +126,9 @@ class SmartAngleTool(QgsMapTool):
         if event.key() == Qt.Key_Escape:
             self.nbPoints = 0
             self.points = []
-            self.rb.reset(True)
-            self.PLArb.reset(True)
-            self.SADrb.reset(True)
-
-            self.canvas.refresh()
+            self.rb.reset()
+            self.PLArb.reset()
+            self.SADrb.reset()
 
     def canvasPressEvent(self,event):
         if event.button() == 1:
@@ -132,25 +151,20 @@ class SmartAngleTool(QgsMapTool):
                 self.nbPoints = 0
                 self.points = []
                 self.createFeature(geom)
-                self.rb.reset(True)
-                self.PLArb.reset(True)
-                self.SADrb.reset(True)
-
-                self.canvas.refresh()
+                self.rb.reset()
+                self.PLArb.reset()
+                self.SADrb.reset()
             else:
                 self.nbPoints = 0
                 self.points = []
-                self.rb.reset(True)
-                self.PLArb.reset(True)
-                self.SADrb.reset(True)
-
-                self.canvas.refresh()
+                self.rb.reset()
+                self.PLArb.reset()
+                self.SADrb.reset()
 
     def canvasMoveEvent(self,event):
         currpoint = self.calcCurrPoint(event.pos())
-        if not self.rb: return
         layer = self.canvas.currentLayer()
-        if layer <> None:
+        if layer <> None and layer.type():
             self.geometryType = layer.geometryType()
         else: self.geometryType = -1
         if self.geometryType == 1 or self.nbPoints == 1:
@@ -226,7 +240,7 @@ class SmartAngleTool(QgsMapTool):
             self.drawSnapAccessory(currpoint,distance(currpoint,self.toMapCoordinates(eventPos)))
             return currpoint
         else:
-            self.snapRb.reset(True)
+            self.snapRb.reset()
 
         currpoint = self.toMapCoordinates(eventPos)
         shiftPoint = None
@@ -257,11 +271,11 @@ class SmartAngleTool(QgsMapTool):
         if PLApoint:
             self.PLArb.setToGeometry(QgsGeometry.fromPolyline([self.points[0],currpoint]), self.canvas.currentLayer())
         elif self.PLArb:
-            self.PLArb.reset(True)
+            self.PLArb.reset()
         if shiftPoint:
             self.SADrb.setToGeometry(QgsGeometry.fromPolyline([self.points[self.nbPoints-1],currpoint]), self.canvas.currentLayer())
         elif self.SADrb:
-            self.SADrb.reset(True)
+            self.SADrb.reset()
 
         return currpoint
 
@@ -284,31 +298,6 @@ class SmartAngleTool(QgsMapTool):
 
     def showSettingsWarning(self):
         pass
-
-    def activate(self):
-        self.canvas.setCursor(self.cursor)
-        self.updateSnapper()
-        self.canvas.layersChanged.connect(self.updateSnapper)
-        self.canvas.scaleChanged.connect(self.updateSnapper)
-        QgsProject.instance().readProject.connect(self.updateSnapper)
-        QgsProject.instance().snapSettingsChanged.connect(self.updateSnapper)
-
-    def deactivate(self):
-        self.nbPoints = 0
-        self.points = []
-        self.rb.reset()
-        self.PLArb.reset()
-        self.SADrb.reset()
-        self.snapRb.reset()
-
-
-        self.canvas.refresh()
-
-        self.canvas.layersChanged.disconnect(self.updateSnapper)
-        self.canvas.scaleChanged.disconnect(self.updateSnapper)
-        QgsProject.instance().readProject.disconnect(self.updateSnapper)
-        QgsProject.instance().snapSettingsChanged.disconnect(self.updateSnapper)
-
 
     def calcShiftPoint(self, p0, p1, p2):
         x0, y0, x1, y1, x2, y2 = p0.x(), p0.y(),p1.x(), p1.y(), p2.x(), p2.y()
