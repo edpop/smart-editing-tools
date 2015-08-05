@@ -748,16 +748,32 @@ class MultiEditingTool(QgsMapTool):
                 continue
             selectRect = self.toLayerCoordinates(layer, rect)
 
-            fIds = []
+            index = None
+            for i in range(len(self.features)):
+                if self.features[i]["layer"] == layer:
+                    index = i
+            if index is None:
+                currentRow = {"layer": layer, "fIds": []}
+            else:
+                currentRow = self.features[index]
+
+            fIds = currentRow["fIds"]
             for feature in layer.getFeatures(QgsFeatureRequest(selectRect)):
-                if feature in self.features:
+                if feature in fIds:
                     continue
                 geom = feature.geometry()
                 if not geom.intersects(selectRect):
                     continue
                 fIds.append(feature.id())
-            if len(fIds)>0:
-                self.features.append({"layer": layer, "fIds": fIds})
+
+            if index is None:
+                if len(fIds)>0:
+                    self.features.append({"layer": layer, "fIds": fIds})
+            else:
+                if len(fIds)>0:
+                    self.features[index] = currentRow
+                else:
+                    del self.features[index]
 
     def iterateFeatures(self, pointChangeMethod):
         for row in self.features:
