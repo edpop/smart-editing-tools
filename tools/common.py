@@ -98,6 +98,7 @@ def nearestAngle(angle,TAnb):
                 break
             if i == TAnb:
                 delta-=sepAngle
+
         return delta
 
 def rotateCoords(angle, QPlist):
@@ -129,12 +130,15 @@ def crossPoint(p11, p12, p21, p22):
 def convertToMapCoordinates(MapTool,layer,pList):
     for i in range(len(pList)):
         pList[i] = MapTool.toMapCoordinates(layer,pList[i])
+
     return pList
 
 def convertToLayerCoordinates(MapTool,layer,pList):
     for i in range(len(pList)):
         pList[i] = MapTool.toLayerCoordinates(layer,pList[i])
+
     return pList
+
 def makeCircle(point,width,nbPoints):#making "circle"
     pList = []
     sepAngle = 2*pi/nbPoints
@@ -143,6 +147,7 @@ def makeCircle(point,width,nbPoints):#making "circle"
         pList.append(QgsPoint(width*cos(angle),width*sin(angle)))
         angle+=sepAngle
     pList.append(pList[0])
+
     return moveCoords(point,pList,-1)
 
 def getLayerSRID(layer):
@@ -156,6 +161,7 @@ def getLayerTable(layer):
     scheme = t[:sep]
     t = t[sep+3:]
     table = t[:t.find('"')]
+
     return scheme+'.'+table
 
 #######

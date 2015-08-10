@@ -21,6 +21,9 @@ class MultiEditingTool(QgsMapTool):
         self.mode = None
         self.vertex = None
         self.segments = []
+        self.brainySpinOptions = {"segment1": None}
+        self.rbBrainySpin = rbInit(self.canvas, QColor(160,189,255), width=5)
+        self.rbBrainySpin.setOpacity(0.7)
 
         #Hold down keys
         self.ctrl = None
@@ -45,33 +48,39 @@ class MultiEditingTool(QgsMapTool):
         #Interface
         self.multiSelectionCheckBox = QCheckBox(self.tr(u'Multi-\nselection'))
         self.transformModeComboBox = QComboBox()
-        self.transformModeComboBox.addItem(QIcon(":/plugins/smart-editing-tools/tools/none.png"),
+        self.transformModeComboBox.addItem(QIcon(":/plugins/smart_editing_tools/images/none.png"),
                                            self.tr(u'None'), editModes.none)
-        self.transformModeComboBox.addItem(QIcon(":/plugins/smart-editing-tools/tools/resize.png"),
+        self.transformModeComboBox.addItem(QIcon(":/plugins/smart_editing_tools/images/resize.png"),
                                            self.tr(u'Resize'), editModes.resize)
-        self.transformModeComboBox.addItem(QIcon(":/plugins/smart-editing-tools/tools/skew.png"),
+        self.transformModeComboBox.addItem(QIcon(":/plugins/smart_editing_tools/images/skew.png"),
                                            self.tr(u'Skew'), editModes.skew)
         self.toolbarItems = [
             self.parent.toolbar.addSeparator(),
             self.parent.toolbar.addWidget(self.multiSelectionCheckBox),
-            self.parent.toolbar.addAction(QIcon(":/plugins/smart-editing-tools/tools/flip_horizontal.png"),
+            self.parent.toolbar.addAction(QIcon(":/plugins/smart_editing_tools/images/flip_horizontal.png"),
                                           self.tr(u'Flip Horizontal'), self.flipHorizontal),
-            self.parent.toolbar.addAction(QIcon(":/plugins/smart-editing-tools/tools/flip_vertical.png"),
+            self.parent.toolbar.addAction(QIcon(":/plugins/smart_editing_tools/images/flip_vertical.png"),
                                           self.tr(u'Flip Vertical'), self.flipVertical),
             self.parent.toolbar.addWidget(self.transformModeComboBox),
 
             self.parent.toolbar.addSeparator(),
-            self.parent.toolbar.addAction(QIcon(":/plugins/smart-editing-tools/tools/copy.png"),
+            self.parent.toolbar.addAction(QIcon(":/plugins/smart_editing_tools/images/copy.png"),
                                           self.tr(u'Copy'), self.copy),
-            self.parent.toolbar.addAction(QIcon(":/plugins/smart-editing-tools/tools/paste.png"),
+            self.parent.toolbar.addAction(QIcon(":/plugins/smart_editing_tools/images/paste.png"),
                                           self.tr(u'Paste'), self.paste),
 
             self.parent.toolbar.addSeparator(),
-            self.parent.toolbar.addAction(QIcon(":/plugins/smart-editing-tools/tools/save_edits.png"),
+            self.parent.toolbar.addAction(QIcon(":/plugins/smart_editing_tools/images/save_edits.png"),
                                           self.tr(u'Save edits'), self.saveEdits),
-            self.parent.toolbar.addAction(QIcon(":/plugins/smart-editing-tools/tools/remove_edits.png"),
+            self.parent.toolbar.addAction(QIcon(":/plugins/smart_editing_tools/images/remove_edits.png"),
                                           self.tr(u'Remove edits'), self.removeEdits),
+
+            self.parent.toolbar.addSeparator()
         ]
+        self.brainySpin = self.parent.toolbar.addAction(QIcon(":/plugins/smart_editing_tools/images/multi_brainy_spin.png"),
+                                                        self.tr(u'Brainy spin'))
+        self.brainySpin.setCheckable(True)
+        self.toolbarItems.append(self.brainySpin)
 
         for item in self.toolbarItems:
             item.setVisible(False)
@@ -83,7 +92,7 @@ class MultiEditingTool(QgsMapTool):
         self.releaseEvent = None
 
     def tr(self, message):
-        return QCoreApplication.translate("MultiEditing", message)
+        return QCoreApplication.translate("MultiEditingTool", message)
 
     def isTransient(self):
         return False
@@ -125,6 +134,7 @@ class MultiEditingTool(QgsMapTool):
         self.rbFeatures.reset()
         self.rbRect.reset()
         self.rbSnap.reset()
+        self.rbBrainySpin.reset()
 
         self.setMode(editModes.standart)
 
@@ -177,6 +187,10 @@ class MultiEditingTool(QgsMapTool):
                 segmentNum = self.calcSegmentNum(self.point)
                 rectPoint = pointOnSegment( self.point, [self.rect.vertexAt(segmentNum[0]),self.rect.vertexAt(segmentNum[1])] )
                 self.point = rectPoint
+
+            elif self.mode == editModes.brainySpin:
+                segment = self.findSelectedSegment(self.point)
+                self.brainySpinOptions["segment1"] = segment
 
         elif mouseEvent.button() == 2:
             self.reset()
@@ -246,7 +260,27 @@ class MultiEditingTool(QgsMapTool):
 
                 self.skewRbFeatures(alpha, beta, gamma)
 
+            elif self.mode == editModes.brainySpin:
+                if self.brainySpinOptions["segment1"] is not None:
+                    s1 = self.brainySpinOptions["segment1"]
+                    s2 = self.findSegment(mapPos)
+                    if s2 and s1 <> s2:
+                        p1 = QgsPoint( (s1[0].x()+s1[1].x())/2, (s1[0].y()+s1[1].y())/2 )
+                        p2 = QgsPoint( (s2[0].x()+s2[1].x())/2, (s2[0].y()+s2[1].y())/2 )
+                        dx = p2.x() - p1.x()
+                        dy = p2.y() - p1.y()
+                        alpha = calcAngle(s2[0], s2[1]) - calcAngle(s1[0],s1[1]) + pi
+                        self.brainySpinRbRect(dx,dy,p2,alpha)
+
+                        self.brainySpinRbFeatures(dx,dy,p2,alpha)
+
         else:
+            self.rbBrainySpin.reset()
+            if self.mode == editModes.brainySpin:
+                segment = self.findSelectedSegment(mapPos)
+                if segment:
+                    self.rbBrainySpin.setToGeometry(QgsGeometry.fromPolyline(segment), QgsVectorLayer())
+
             self.setMode(self.calcMode(mapPos))
 
         self.rbSnap.reset()
@@ -337,6 +371,23 @@ class MultiEditingTool(QgsMapTool):
                     self.skewFeatures(alpha, beta, gamma)
 
                     self.canvas.refresh()
+
+            elif self.mode == editModes.brainySpin:
+                if self.brainySpinOptions["segment1"] is not None:
+                    s1 = self.brainySpinOptions["segment1"]
+                    self.brainySpinOptions["segment1"] = None
+                    s2 = self.findSegment(mapPos)
+                    if s2 and s1 <> s2:
+                        p1 = QgsPoint( (s1[0].x()+s1[1].x())/2, (s1[0].y()+s1[1].y())/2 )
+                        p2 = QgsPoint( (s2[0].x()+s2[1].x())/2, (s2[0].y()+s2[1].y())/2 )
+                        dx = p2.x() - p1.x()
+                        dy = p2.y() - p1.y()
+                        alpha = calcAngle(s2[0], s2[1]) - calcAngle(s1[0],s1[1]) + pi
+                        self.brainySpinRect(dx,dy,p2,alpha)
+
+                        self.brainySpinFeatures(dx,dy,p2,alpha)
+
+                        self.canvas.refresh()
 
         self.point = None
         self.releaseFinished = True
@@ -575,6 +626,8 @@ class MultiEditingTool(QgsMapTool):
                     return mode
 
             if self.rect.contains(point):
+                if self.brainySpin.isChecked():
+                    return editModes.brainySpin
                 return editModes.move
             else:
                 return editModes.rotate
@@ -587,7 +640,28 @@ class MultiEditingTool(QgsMapTool):
         elif self.mode == editModes.move:
             cursor = QCursor(Qt.SizeAllCursor)
         elif self.mode == editModes.rotate:
-            cursor = QCursor(QPixmap(":/plugins/smart-editing-tools/tools/cursor_rotating.png"))
+            cursor = QCursor(QPixmap(":/plugins/smart_editing_tools/images/cursor_rotating.png"))
+        elif self.mode == editModes.brainySpin:
+            cursor = QCursor(QPixmap(["15 15 3 1",
+                                      "      c None",
+                                      ".     c #22CAFF",
+                                      "+     c #000000",
+                                      "      +++      ",
+                                      "      +.+      ",
+                                      "      +.+      ",
+                                      "      +.+      ",
+                                      "      +.+      ",
+                                      "      +.+      ",
+                                      "++++++   ++++++",
+                                      "+..... + .....+",
+                                      "++++++   ++++++",
+                                      "      +.+      ",
+                                      "      +.+      ",
+                                      "      +.+      ",
+                                      "      +.+      ",
+                                      "      +.+      ",
+                                      "      +++      "
+                                      ]))
         else:
             mousePos = self.toMapCoordinates(self.canvas.mouseLastXY())
             cent = self.centerRect()
@@ -602,20 +676,20 @@ class MultiEditingTool(QgsMapTool):
                 vertex = self.calcVertex(mousePos)
                 if vertex:
                     if tan(calcAngle(vertex, cent)) > 0:
-                        cursor = QCursor(QPixmap(":/plugins/smart-editing-tools/tools/cursor_resize_45.png"))
+                        cursor = QCursor(QPixmap(":/plugins/smart_editing_tools/images/cursor_resize_45.png"))
                     else:
-                        cursor = QCursor(QPixmap(":/plugins/smart-editing-tools/tools/cursor_resize_135.png"))
+                        cursor = QCursor(QPixmap(":/plugins/smart_editing_tools/images/cursor_resize_135.png"))
                 else:
                     if orientation == Qt.Horizontal:
-                        cursor = QCursor(QPixmap(":/plugins/smart-editing-tools/tools/cursor_resize_vertical.png"))
+                        cursor = QCursor(QPixmap(":/plugins/smart_editing_tools/images/cursor_resize_vertical.png"))
                     elif orientation == Qt.Vertical:
-                        cursor = QCursor(QPixmap(":/plugins/smart-editing-tools/tools/cursor_resize_horizontal.png"))
+                        cursor = QCursor(QPixmap(":/plugins/smart_editing_tools/images/cursor_resize_horizontal.png"))
 
             elif self.mode == editModes.skew:
                 if orientation == Qt.Horizontal:
-                    cursor = QCursor(QPixmap(":/plugins/smart-editing-tools/tools/cursor_skew_horizontal.png"))
+                    cursor = QCursor(QPixmap(":/plugins/smart_editing_tools/images/cursor_skew_horizontal.png"))
                 elif orientation == Qt.Vertical:
-                    cursor = QCursor(QPixmap(":/plugins/smart-editing-tools/tools/cursor_skew_vertical.png"))
+                    cursor = QCursor(QPixmap(":/plugins/smart_editing_tools/images/cursor_skew_vertical.png"))
 
         self.canvas.setCursor(cursor)
 
@@ -717,6 +791,24 @@ class MultiEditingTool(QgsMapTool):
         for i in range(4):
             vertex = rect.vertexAt(i)
             vertex = self.skewPoint(vertex, alpha, beta, gamma)
+            rect.moveVertex(vertex.x(),vertex.y(),i)
+
+        self.rbRect.setToGeometry(rect, QgsVectorLayer())
+
+    def brainySpinRect(self, dx, dy, relPoint, alpha):
+        rect = QgsGeometry(self.rect)
+        for i in range(4):
+            vertex = rect.vertexAt(i)
+            vertex = self.brainySpinPoint(vertex, dx, dy, relPoint, alpha)
+            rect.moveVertex(vertex.x(),vertex.y(),i)
+
+        self.setRect(rect)
+
+    def brainySpinRbRect(self, dx, dy, relPoint, alpha):
+        rect = QgsGeometry(self.rect)
+        for i in range(4):
+            vertex = rect.vertexAt(i)
+            vertex = self.brainySpinPoint(vertex, dx, dy, relPoint, alpha)
             rect.moveVertex(vertex.x(),vertex.y(),i)
 
         self.rbRect.setToGeometry(rect, QgsVectorLayer())
@@ -1035,6 +1127,22 @@ class MultiEditingTool(QgsMapTool):
                 for feature in layer.getFeatures(QgsFeatureRequest().setFilterFids(fIds)):
                     self.rbFeatures.addGeometry(feature.geometry(), layer)
 
+    #brainy spin
+    def brainySpinPoint(self, point, dx, dy, relPoint, alpha):
+        point = QgsPoint(point.x()+dx,point.y()+dy)
+
+        [point] = moveCoords(relPoint, [point])
+        [point] = rotateCoords(alpha, [point])
+        [point] = moveCoords(relPoint, [point], reverse=-1)
+        return point
+
+    def brainySpinFeatures(self, dx, dy, relPoint, alpha):
+        function = lambda point: self.brainySpinPoint(point, dx, dy, relPoint, alpha)
+        self.iterateFeatures(function)
+
+    def brainySpinRbFeatures(self, dx, dy, relPoint, alpha):
+        function = lambda point: self.brainySpinPoint(point, dx, dy, relPoint, alpha)
+        self.iterateRbFeatures(function)
 
     #ACTIONS
     def flipHorizontal(self):
@@ -1123,3 +1231,5 @@ class editModes():
 
     resize = 4
     skew = 5
+
+    brainySpin = 6

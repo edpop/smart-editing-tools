@@ -37,21 +37,17 @@ class SmartAngleTool(QgsMapTool):
         self.iface = iface
         self.canvas = self.iface.mapCanvas()
         QgsMapTool.__init__(self,self.canvas)
-        self.geometryType = -1
-        self.nbPoints = 0
 
         self.rb = self.rbInit(QColor(22,139,136))
         self.rb.setBrushStyle(Qt.Dense7Pattern)
         self.rb.setFillColor(QColor(192,168,70))
 
         self.PLArb = self.rbInit(QColor(255,0,0), Qt.DashLine)
-
         self.SADrb = self.rbInit(QColor(0,0,255), Qt.DashLine)
-
         self.snapRb = self.rbInit(QColor(0,255,0),width=2)
 
         self.points = []
-        self.length = 0
+        self.geometryType = -1
         self.mShift = None
         self.TAnb = 8 # ways to click with Shift
         self.cursor = QCursor(QPixmap(["16 16 3 1",
@@ -96,11 +92,7 @@ class SmartAngleTool(QgsMapTool):
         QgsProject.instance().snapSettingsChanged.connect(self.updateSnapper)
 
     def deactivate(self):
-        self.nbPoints = 0
-        self.points = []
-        self.rb.reset()
-        self.PLArb.reset()
-        self.SADrb.reset()
+        self.reset()
         self.snapRb.reset()
 
         self.canvas.layersChanged.disconnect(self.updateSnapper)
@@ -108,13 +100,18 @@ class SmartAngleTool(QgsMapTool):
         QgsProject.instance().readProject.disconnect(self.updateSnapper)
         QgsProject.instance().snapSettingsChanged.disconnect(self.updateSnapper)
 
+    def reset(self):
+        self.points = []
+        self.rb.reset()
+        self.PLArb.reset()
+        self.SADrb.reset()
+
     def keyPressEvent(self,  event):
         if event.key() == Qt.Key_Shift:
             self.mShift = True
-        if event.key() == Qt.Key_Backspace and self.nbPoints>0:
+        if event.key() == Qt.Key_Backspace and len(self.points) > 0:
             self.points.pop()
-            self.nbPoints-=1
-            if self.geometryType == 1 or self.nbPoints == 1:
+            if self.geometryType == 1 or len(self.points) == 1:
                 self.rb.setToGeometry(QgsGeometry.fromPolyline(self.points), None)
             else:
                 self.rb.setToGeometry(QgsGeometry.fromPolygon([self.points]), None)
@@ -124,11 +121,7 @@ class SmartAngleTool(QgsMapTool):
         if event.key() == Qt.Key_Shift:
             self.mShift = False
         if event.key() == Qt.Key_Escape:
-            self.nbPoints = 0
-            self.points = []
-            self.rb.reset()
-            self.PLArb.reset()
-            self.SADrb.reset()
+            self.reset()
 
     def canvasPressEvent(self,event):
         if event.button() == 1:
@@ -136,38 +129,30 @@ class SmartAngleTool(QgsMapTool):
 
             point = self.calcCurrPoint(event.pos())
             pointMap = self.toMapCoordinates(layer, point)
-            if self.nbPoints > 0:
-                if pointMap == self.points[self.nbPoints-1] or self.crossCheck(pointMap):
+            if len(self.points) > 0:
+                if pointMap == self.points[-1] or self.crossCheck(pointMap):
                     return
             self.points.append(pointMap)
-            self.nbPoints += 1
         if event.button() == 2:
             self.geometryType = self.canvas.currentLayer().geometryType()
-            if self.nbPoints > self.geometryType:
+            if len(self.points) > self.geometryType:
                 if self.geometryType == 1:
                     geom = QgsGeometry.fromPolyline(self.points)
                 else:
                     geom = QgsGeometry.fromPolygon([self.points])
-                self.nbPoints = 0
-                self.points = []
                 self.createFeature(geom)
-                self.rb.reset()
-                self.PLArb.reset()
-                self.SADrb.reset()
+                self.reset()
             else:
-                self.nbPoints = 0
-                self.points = []
-                self.rb.reset()
-                self.PLArb.reset()
-                self.SADrb.reset()
+                self.reset()
 
     def canvasMoveEvent(self,event):
         currpoint = self.calcCurrPoint(event.pos())
         layer = self.canvas.currentLayer()
-        if layer <> None and layer.type():
-            self.geometryType = layer.geometryType()
-        else: self.geometryType = -1
-        if self.geometryType == 1 or self.nbPoints == 1:
+        #if layer <> None and layer.type():
+        self.geometryType = layer.geometryType()
+        #else: self.geometryType = -1
+        #print(layer.type())
+        if self.geometryType == 1 or len(self.points) == 1:
             self.rb.setToGeometry(QgsGeometry.fromPolyline(self.points+[currpoint]), layer)
         else:
             self.rb.setToGeometry(QgsGeometry.fromPolygon([self.points+[currpoint]]), layer)
@@ -246,7 +231,7 @@ class SmartAngleTool(QgsMapTool):
         shiftPoint = None
         PLApoint = None
 
-        if self.nbPoints > 1:
+        if len(self.points) > 1:
             alpha = self.lastAngle(currpoint)
             beta = self.nearestAngle(alpha)
             if abs(beta-alpha) < 2*pi/self.TAnb/10:
@@ -254,13 +239,13 @@ class SmartAngleTool(QgsMapTool):
                 if distance(PLApoint,currpoint) > self.canvas.mapUnitsPerPixel()*5: PLApoint = None
 
         if self.mShift:
-            if self.nbPoints > 1:
-                shiftPoint = self.calcShiftPoint(currpoint, self.points[self.nbPoints-1], self.points[self.nbPoints-2])
-            elif self.nbPoints==1:
+            if len(self.points) > 1:
+                shiftPoint = self.calcShiftPoint(currpoint, self.points[-1], self.points[-2])
+            elif len(self.points) == 1:
                 shiftPoint = self.calcShiftPoint(currpoint, self.points[0], QgsPoint(self.points[0].x()+1,self.points[0].y()))
 
         if PLApoint and shiftPoint:
-            point = self.crossPoint(self.points[0], PLApoint, self.points[self.nbPoints-1], shiftPoint)
+            point = self.crossPoint(self.points[0], PLApoint, self.points[-1], shiftPoint)
             if point:
                 currpoint = point
         elif shiftPoint:
@@ -270,11 +255,11 @@ class SmartAngleTool(QgsMapTool):
 
         if PLApoint:
             self.PLArb.setToGeometry(QgsGeometry.fromPolyline([self.points[0],currpoint]), self.canvas.currentLayer())
-        elif self.PLArb:
+        else:
             self.PLArb.reset()
         if shiftPoint:
-            self.SADrb.setToGeometry(QgsGeometry.fromPolyline([self.points[self.nbPoints-1],currpoint]), self.canvas.currentLayer())
-        elif self.SADrb:
+            self.SADrb.setToGeometry(QgsGeometry.fromPolyline([self.points[-1],currpoint]), self.canvas.currentLayer())
+        else:
             self.SADrb.reset()
 
         return currpoint
@@ -334,30 +319,26 @@ class SmartAngleTool(QgsMapTool):
 
 
     def crossCheck(self, newpoint):
-        if self.nbPoints < 3: return 0
+        if len(self.points) < 3:
+            return False
         else:
-            for i in range(self.nbPoints-2):
-                if self.cross(self.points[i], self.points[i+1],
-                              self.points[self.nbPoints-1], newpoint):
-                    return 1
+            for i in range(len(self.points)-2):
+                if self.cross([self.points[i], self.points[i+1]], [self.points[-1], newpoint]):
+                    return True
 
-        return 0
+        return False
 
 
-    def cross(self, p11, p12, p21, p22):
-        x11, y11,x12, y12, x21, y21, x22, y22 = p11.x(), p11.y(),p12.x(), p12.y(),\
-                                                p21.x(), p21.y(), p22.x(), p22.y()
-
-        """#Require cond
-        if True in map(lambda a,b: ((a[0]>b[0] and a[0]>b[1]) and (a[1]>b[0] and a[1]>b[1]))
-                                or ((a[0]<b[0] and a[0]<b[1]) and (a[1]<b[0] and a[1]<b[1])),
-                      [[x11,x12],[y11,y12]],[[x21,x22],[y21,y22]]):
-            return 0"""
+    def cross(self, s1, s2):
+        [p11, p12], [p21, p22] = s1, s2
+        x11, y11, x12, y12 = p11.x(), p11.y(), p12.x(), p12.y()
+        x21, y21, x22, y22 = p21.x(), p21.y(), p22.x(), p22.y()
 
         v1 = (x22-x21)*(y11-y21)-(y22-y21)*(x11-x21)
         v2 = (x22-x21)*(y12-y21)-(y22-y21)*(x12-x21)
         v3 = (x12-x11)*(y21-y11)-(y12-y11)*(x21-x11)
         v4 = (x12-x11)*(y22-y11)-(y12-y11)*(x22-x11)
+
         return (v1*v2<0) and (v3*v4<0)
 
 
@@ -395,6 +376,7 @@ class SmartAngleTool(QgsMapTool):
         y0=currpoint.y()-self.points[0].y()
         x=x0*cos(Tangle)-y0*sin(Tangle)
         y=x0*sin(Tangle)+y0*cos(Tangle)
+
         return calcAngle(QgsPoint(0,0),QgsPoint(x,y))
 
 
@@ -402,7 +384,7 @@ class SmartAngleTool(QgsMapTool):
         #TAnb - the number of triangles, divides the plane
         sepAngle = 2*pi/self.TAnb
         a=pi*2
-        if self.nbPoints==1:
+        if len(self.points) == 1:
             delta = 0
         else:
             delta = sepAngle
@@ -431,6 +413,7 @@ class SmartAngleTool(QgsMapTool):
         y0=x*sin(-Tangle)+y*cos(-Tangle)
         x0+=self.points[0].x()
         y0+=self.points[0].y()
+
         return(QgsPoint(x0,y0))
 
 

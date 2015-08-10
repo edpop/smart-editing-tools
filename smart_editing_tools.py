@@ -57,7 +57,7 @@ class Smart_editing_tools:
         locale_path = os.path.join(
             self.plugin_dir,
             'i18n',
-            'smart-editing-tools_{}.qm'.format(locale))
+            '{}.qm'.format(locale))
         if os.path.exists(locale_path):
             self.translator = QTranslator()
             self.translator.load(locale_path)
@@ -68,8 +68,8 @@ class Smart_editing_tools:
         # Declare instance attributes
         self.actions = []
         self.name = self.tr(u'&Smart editing tools')
-        self.menu = self.iface.vectorMenu().addMenu(QIcon(":/plugins/smart-editing-tools/icon.png"),self.name)
-        self.toolbar = self.iface.addToolBar(u'Smart_editing_tools')
+        self.menu = self.iface.vectorMenu().addMenu(QIcon(":/plugins/smart_editing_tools/icon.png"),self.name)
+        self.toolbar = self.iface.addToolBar(u'Smart editing tools')
         self.toolbar.setObjectName(u'Smart_editing_tools')
         self.oldTool = None
         self.disconnection = None
@@ -88,7 +88,6 @@ class Smart_editing_tools:
         """
         # noinspection PyTypeChecker,PyArgumentList,PyCallByClass
         return QCoreApplication.translate('Smart_editing_tools', message)
-
 
     def add_action(
         self,
@@ -170,7 +169,7 @@ class Smart_editing_tools:
 
         #Smart angles
         self.add_action(
-            ':/plugins/smart-editing-tools/tools/smart_angle_drawing.png',
+            ':/plugins/smart_editing_tools/images/smart_angle_drawing.png',
             text=self.tr(u'Smart angle drawing'),
             callback=self.SmartAngleInit,
             add_to_menu = True,
@@ -180,7 +179,7 @@ class Smart_editing_tools:
 
         #Awesome editing
         self.add_action(
-            ':/plugins/smart-editing-tools/tools/awesome_editing.png',
+            ':/plugins/smart_editing_tools/images/awesome_editing.png',
             text=self.tr(u'Awesome editing'),
             callback=self.AgewomeEditingInit,
             add_to_menu = True,
@@ -190,7 +189,7 @@ class Smart_editing_tools:
 
         #Brainy spin
         self.add_action(
-            ':/plugins/smart-editing-tools/tools/brainy_spin.png',
+            ':/plugins/smart_editing_tools/images/brainy_spin.png',
             text=self.tr(u'Brainy spin'),
             callback=self.BrainySpinInit,
             add_to_menu = True,
@@ -200,7 +199,7 @@ class Smart_editing_tools:
 
         #Multi rotate
         self.add_action(
-            ':/plugins/smart-editing-tools/tools/multi_editing.png',
+            ':/plugins/smart_editing_tools/images/multi_editing.png',
             text=self.tr(u'Multi-editing'),
             callback=self.MultiEditingInit,
             add_to_menu = True,
@@ -212,10 +211,13 @@ class Smart_editing_tools:
         self.iface.currentLayerChanged.connect(self.toggle)
         self.toggle()
 
-
     def unload(self):
         self.canvas.mapToolSet.disconnect(self.deactivate)
         self.iface.currentLayerChanged.disconnect(self.toggle)
+        if self.disconnection:
+            self.disconnection()
+            self.disconnection = None
+
         #Removes the plugin menu item and icon from QGIS GUI.
         for action in self.actions:
             self.iface.removePluginVectorMenu(
@@ -225,10 +227,10 @@ class Smart_editing_tools:
 
         self.iface.vectorMenu().removeAction(self.menu.menuAction())
 
-        self.canvas.unsetMapTool(self.SmartAngle_tool)
-        self.canvas.unsetMapTool(self.AwesomeEditing_tool)
-        self.canvas.unsetMapTool(self.BrainySpin_tool)
-        self.canvas.unsetMapTool(self.MultiEditing_tool)
+        if self.canvas.mapTool() in [self.SmartAngle_tool,self.AwesomeEditing_tool,self.BrainySpin_tool,self.MultiEditing_tool]:
+            self.canvas.unsetMapTool(self.canvas.mapTool())
+            if self.oldTool:
+                self.canvas.setMapTool(self.oldTool)
 
         # remove the toolbar
         del self.toolbar
@@ -244,7 +246,7 @@ class Smart_editing_tools:
             self.disconnection = None
         #Decide whether the plugin button/menu is enabled or disabled
         if layer is not None:
-            if layer.type() == QgsMapLayer.VectorLayer and layer.isEditable() and (layer.geometryType() == 2 or layer.geometryType() == 1):
+            if layer.type() == QgsMapLayer.VectorLayer and (layer.geometryType() == 2 or layer.geometryType() == 1) and layer.isEditable():
                 for action in self.actions:
                     if action.whatsThis() in ["SmartAngle","AwesomeEditing","BrainySpin"]:
                         action.setEnabled(True)
@@ -253,7 +255,9 @@ class Smart_editing_tools:
                 self.disconnection = lambda :layer.editingStopped.disconnect(self.toggle)
 
             else:
-                if layer.type() == QgsMapLayer.VectorLayer:
+                if layer.type() == QgsMapLayer.VectorLayer and (layer.geometryType() == 2 or layer.geometryType() == 1):
+                    if self.canvas.mapTool() == self.MultiEditing_tool:
+                        self.pushToolButton("MultiEditing")
                     layer.editingStarted.connect(self.toggle)
                     self.disconnection = lambda :layer.editingStarted.disconnect(self.toggle)
                 else:
@@ -268,12 +272,16 @@ class Smart_editing_tools:
                         action.setChecked(False)
 
         else:
+            if self.canvas.mapTool() in [self.SmartAngle_tool,self.AwesomeEditing_tool,self.BrainySpin_tool]:
+                self.canvas.unsetMapTool(self.canvas.mapTool())
+                if self.oldTool:
+                    self.canvas.setMapTool(self.oldTool)
+
             self.disconnection = None
             for action in self.actions:
                 if action.whatsThis() in ["SmartAngle","AwesomeEditing","BrainySpin"]:
                     action.setEnabled(False)
                     action.setChecked(False)
-
 
     def pushToolButton(self, bnName):
         for action in self.actions:

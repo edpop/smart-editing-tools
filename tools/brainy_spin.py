@@ -123,7 +123,7 @@ class BrainySpinTool(QgsMapTool):
         if not self.mouseClicked:
             self.resetFeature(point)
         if not self.fId:
-                return
+            return
         if self.mouseClicked:
             self.resetSpinFeature(point)
 
@@ -245,9 +245,9 @@ class BrainySpinTool(QgsMapTool):
             self.rb.setToGeometry(QgsGeometry.fromPolyline(makeCircle(self.vertex,width,16)),self.layer)
 
     def resetSpinFeature(self,point):
+        self.sp1 = None
+        self.sp2 = None
         if not self.vertex:
-            self.sp1 = None
-            self.sp2 = None
             width = self.width()
             rect = QgsRectangle(QgsPoint(point.x()+width,point.y()+width),
                                 QgsPoint(point.x()-width,point.y()-width))
