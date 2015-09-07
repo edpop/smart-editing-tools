@@ -23,7 +23,7 @@ pretty angle multiple 45 degrees between current and previous segments of your l
 
  The tool allows you to deploy a line or polygon parallel to the segment of other figure with respect to the selected segment.
  
- * **Symmetry** ![](images/symmetry.png =25x)
+* **Symmetry** ![](images/symmetry.png =25x)
 
  A tool for determine the symmetry in feature and helps to rotate the feature correctly.
 
