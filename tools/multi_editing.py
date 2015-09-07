@@ -1,15 +1,6 @@
 # -*- coding: utf-8 -*-
 from common import *
 
-def rbInit(canvas, color, width=1, lineStyle = Qt.SolidLine, brushStyle=Qt.NoBrush):
-    rb = QgsRubberBand(canvas)
-    rb.setColor(color)
-    rb.setWidth(width)
-    rb.setLineStyle(lineStyle)
-    rb.setBrushStyle(brushStyle)
-    return rb
-
-
 class MultiEditingTool(QgsMapTool):
     def __init__(self, iface, parent):
         self.parent = parent
@@ -46,7 +37,7 @@ class MultiEditingTool(QgsMapTool):
         self.rbFeatures.setOpacity(0.8)
 
         #Interface
-        self.multiSelectionCheckBox = QCheckBox(self.tr(u'Multi-\nselection'))
+        self.multiSelectionCheckBox = QCheckBox(self.tr(u'Multi-\nselect'))
         self.transformModeComboBox = QComboBox()
         self.transformModeComboBox.addItem(QIcon(":/plugins/smart_editing_tools/images/none.png"),
                                            self.tr(u'None'), editModes.none)
@@ -54,13 +45,26 @@ class MultiEditingTool(QgsMapTool):
                                            self.tr(u'Resize'), editModes.resize)
         self.transformModeComboBox.addItem(QIcon(":/plugins/smart_editing_tools/images/skew.png"),
                                            self.tr(u'Skew'), editModes.skew)
+
+        flipHorizontal = QAction(QIcon(":/plugins/smart_editing_tools/images/flip_horizontal.png"),
+                                 self.tr(u'Flip Horizontal'), self.iface.mainWindow())
+        flipHorizontal.triggered.connect(self.flipHorizontal)
+        flipVertical = QAction(QIcon(":/plugins/smart_editing_tools/images/flip_vertical.png"),
+                               self.tr(u'Flip Vertical'), self.iface.mainWindow())
+        flipVertical.triggered.connect(self.flipVertical)
+        flipToolButton = QToolButton()
+        flipToolButton.setPopupMode(QToolButton.MenuButtonPopup)
+        flipToolButton.addActions([flipHorizontal, flipVertical])
+        flipToolButton.setDefaultAction(flipHorizontal)
+        flipToolButton.triggered.connect(flipToolButton.setDefaultAction)
+
         self.toolbarItems = [
             self.parent.toolbar.addSeparator(),
             self.parent.toolbar.addWidget(self.multiSelectionCheckBox),
-            self.parent.toolbar.addAction(QIcon(":/plugins/smart_editing_tools/images/flip_horizontal.png"),
-                                          self.tr(u'Flip Horizontal'), self.flipHorizontal),
-            self.parent.toolbar.addAction(QIcon(":/plugins/smart_editing_tools/images/flip_vertical.png"),
-                                          self.tr(u'Flip Vertical'), self.flipVertical),
+            self.parent.toolbar.addAction(QIcon(":/plugins/smart_editing_tools/images/attributes_dlg.png"),
+                                          self.tr(u'Set attributes'), self.attributesDlg),
+            self.parent.toolbar.addSeparator(),
+            self.parent.toolbar.addWidget(flipToolButton),
             self.parent.toolbar.addWidget(self.transformModeComboBox),
 
             self.parent.toolbar.addSeparator(),
@@ -108,6 +112,7 @@ class MultiEditingTool(QgsMapTool):
         self.mode = editModes.standart
         self.resetCursor()
         for item in self.toolbarItems:
+            if item == self.brainySpin: continue
             item.setVisible(True)
 
         proj = QgsProject.instance()
@@ -229,6 +234,8 @@ class MultiEditingTool(QgsMapTool):
             elif self.mode == editModes.rotate:
                 relPoint = self.centerRect()
                 alpha = calcAngle(mapPos,relPoint)-calcAngle(self.point, relPoint)
+                if self.shift:
+                    alpha = nearestAngle(leadAngle(alpha), 8)
                 self.rotateRbRect(relPoint, alpha)
 
                 self.rotateRbFeatures(relPoint, alpha)
@@ -333,6 +340,8 @@ class MultiEditingTool(QgsMapTool):
                 if self.point and self.point <> mapPos:
                     relPoint = self.centerRect()
                     alpha = calcAngle(mapPos,relPoint)-calcAngle(self.point, relPoint)
+                    if self.shift:
+                        alpha = nearestAngle(leadAngle(alpha), 8)
                     self.rotateRect(relPoint, alpha)
 
                     self.rotateFeatures(relPoint, alpha)
@@ -621,6 +630,8 @@ class MultiEditingTool(QgsMapTool):
             return editModes.standart
         else:
             if self.rectDist(point) < self.width():
+                if self.brainySpin.isChecked():
+                    return editModes.brainySpin
                 mode = self.transformModeComboBox.itemData(self.transformModeComboBox.currentIndex())
                 if mode <> editModes.none:
                     return mode
@@ -829,6 +840,8 @@ class MultiEditingTool(QgsMapTool):
 
         return dist
 
+    def prettyAngle(self, angle):
+        return angle
 
     #FEATURES
     def updateFeatures(self, rect):
@@ -1145,7 +1158,40 @@ class MultiEditingTool(QgsMapTool):
         self.iterateRbFeatures(function)
 
     #ACTIONS
+    def attributesDlg(self):
+        layer = self.canvas.currentLayer()
+        if not (layer and layer.isEditable()):
+            return
+
+        for row in self.features:
+            if row["layer"] == layer:
+                dlg = MultiAttributeDialog(layer, self.iface.mainWindow())
+                if not dlg.exec_():
+                    del dlg
+                    return
+
+                attributes = dlg.attributes
+                del dlg
+
+                layer.beginEditCommand("multiEdit")
+
+                count = 0
+                for feature in layer.getFeatures(QgsFeatureRequest().setFilterFids(row["fIds"])):
+                    for attribute in attributes:
+                        feature.setAttribute(attribute["idx"], attribute["value"])
+
+                    if layer.updateFeature(feature):
+                        count+=1
+
+                layer.endEditCommand()
+
+                self.iface.mainWindow().statusBar().showMessage( str(count) + self.tr(" feature(s) updated.") )
+
+                return
+
     def flipHorizontal(self):
+        if not self.rect:
+            return
         p0,p1,p2,p3 = self.rect.vertexAt(0),self.rect.vertexAt(1),self.rect.vertexAt(2),self.rect.vertexAt(3)
         line = [ QgsPoint( (p0.x()+p1.x())/2, (p0.y()+p1.y())/2 ), QgsPoint( (p3.x()+p2.x())/2, (p3.y()+p2.y())/2 ) ]
         self.flipFeatures(line)
@@ -1155,6 +1201,8 @@ class MultiEditingTool(QgsMapTool):
         self.canvas.refresh()
 
     def flipVertical(self):
+        if not self.rect:
+            return
         p0,p1,p2,p3 = self.rect.vertexAt(0),self.rect.vertexAt(1),self.rect.vertexAt(2),self.rect.vertexAt(3)
         line = [ QgsPoint( (p0.x()+p3.x())/2, (p0.y()+p3.y())/2 ), QgsPoint( (p1.x()+p2.x())/2, (p1.y()+p2.y())/2 ) ]
         self.flipFeatures(line)
@@ -1179,6 +1227,7 @@ class MultiEditingTool(QgsMapTool):
         self.iface.mainWindow().statusBar().showMessage( str(count) + self.tr(" feature(s) copied.") )
 
     def paste(self):
+        count = 0
         for row in self.buffer:
             layer, features = row["layer"], row["features"]
             layer.beginEditCommand("paste")
@@ -1193,9 +1242,12 @@ class MultiEditingTool(QgsMapTool):
             layer.addFeatures(newFeatures, False)
 
             layer.endEditCommand()
+            count+=len(features)
 
-        self.buffer = []
+        #self.buffer = []
         self.canvas.refresh()
+
+        self.iface.mainWindow().statusBar().showMessage( str(count) + self.tr(" feature(s) pasted.") )
 
     def saveEdits(self):
         if not self.question(self.tr("Save edits"), self.tr("Edits will be saved. Continue?")):
@@ -1233,3 +1285,66 @@ class editModes():
     skew = 5
 
     brainySpin = 6
+
+
+class MultiAttributeDialog(QDialog):
+    def __init__(self, layer, parent=None):
+        super(MultiAttributeDialog,self).__init__(parent)
+        self.layer = layer
+        self.setWindowTitle(self.layer.name() + " - Multi-feature Attributes")
+        self.attributes = []
+        self.wrappers = []
+
+        self.initDlg()
+
+    def initDlg(self):
+        formLayout = QFormLayout(self)
+
+        for field in self.layer.pendingFields().toList():
+            #The best bicycle I found in my mind
+            idx = self.layer.fieldNameIndex( field.name() )
+            if idx < 0:
+                continue
+            if not self.layer.fieldEditable(idx):
+                continue
+
+            displayName = self.layer.attributeDisplayName(idx)
+            widgetType = self.layer.editorWidgetV2(idx)
+
+            if widgetType == "Hidden":
+                continue
+
+            widgetConfig = self.layer.editorWidgetV2Config(idx)
+
+            eww = QgsEditorWidgetRegistry.instance().create(widgetType, self.layer, idx, widgetConfig, None, self)
+            if not eww:
+                continue
+
+            self.wrappers.append(eww)
+
+            widget = eww.widget()
+
+            checkBox = QCheckBox()
+
+            hbox = QHBoxLayout()
+            hbox.addWidget(checkBox)
+            hbox.addWidget(widget)
+
+            formLayout.addRow(displayName, hbox)
+
+            widget.setEnabled(checkBox.isChecked())
+            checkBox.stateChanged.connect(widget.setEnabled)
+
+        buttonBox = QDialogButtonBox(QDialogButtonBox.Ok|QDialogButtonBox.Cancel)
+        buttonBox.accepted.connect(self.validate)
+        buttonBox.rejected.connect(self.reject)
+
+        formLayout.addRow(buttonBox)
+
+    def validate(self):
+        self.attributes = []
+        for eww in self.wrappers:
+            if eww.widget().isEnabled():
+                self.attributes.append( {"idx": eww.fieldIdx(), "value": eww.value()} )
+
+        self.accept()

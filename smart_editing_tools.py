@@ -20,7 +20,7 @@
  *                                                                         *
  ***************************************************************************/
 """
-from PyQt4.QtCore import QSettings, QTranslator, qVersion, QCoreApplication, QObject
+from PyQt4.QtCore import QSettings, QTranslator, qVersion, QCoreApplication
 from PyQt4.QtGui import QAction, QIcon
 from qgis.core import *
 from qgis.gui import *
@@ -29,10 +29,11 @@ import resources
 
 import os.path
 
-from tools.smart_angle_drawing import *
-from tools.awesome_editing import *
-from tools.brainy_spin import *
-from tools.multi_editing import *
+from tools.smart_angle_drawing import SmartAngleTool
+from tools.awesome_editing import AwesomeEditingTool
+from tools.brainy_spin import BrainySpinTool
+from tools.symmetry import SymmetryTool
+from tools.multi_editing import MultiEditingTool
 
 class Smart_editing_tools:
     """QGIS Plugin Implementation."""
@@ -165,37 +166,58 @@ class Smart_editing_tools:
         return action
 
     def initGui(self):
-        """Create the menu entries and toolbar icons inside the QGIS GUI."""
-
         #Smart angles
-        self.add_action(
+        actions = []
+
+        actions.append(self.add_action(
             ':/plugins/smart_editing_tools/images/smart_angle_drawing.png',
             text=self.tr(u'Smart angle drawing'),
             callback=self.SmartAngleInit,
             add_to_menu = True,
+            add_to_toolbar=False,
             whats_this="SmartAngle",
-            parent=self.iface.mainWindow())
+            parent=self.iface.mainWindow()))
         self.SmartAngle_tool = SmartAngleTool(self.iface)
 
         #Awesome editing
-        self.add_action(
+        actions.append(self.add_action(
             ':/plugins/smart_editing_tools/images/awesome_editing.png',
             text=self.tr(u'Awesome editing'),
             callback=self.AgewomeEditingInit,
             add_to_menu = True,
+            add_to_toolbar=False,
             whats_this="AwesomeEditing",
-            parent=self.iface.mainWindow())
+            parent=self.iface.mainWindow()))
         self.AwesomeEditing_tool = AwesomeEditingTool(self.iface)
 
         #Brainy spin
-        self.add_action(
+        actions.append(self.add_action(
             ':/plugins/smart_editing_tools/images/brainy_spin.png',
             text=self.tr(u'Brainy spin'),
             callback=self.BrainySpinInit,
             add_to_menu = True,
+            add_to_toolbar=False,
             whats_this="BrainySpin",
-            parent=self.iface.mainWindow())
+            parent=self.iface.mainWindow()))
         self.BrainySpin_tool = BrainySpinTool(self.iface)
+
+        #Symmetry
+        actions.append(self.add_action(
+            ':/plugins/smart_editing_tools/images/symmetry.png',
+            text=self.tr(u'Symmetry'),
+            callback=self.SymmetryInit,
+            add_to_menu = True,
+            add_to_toolbar=False,
+            whats_this="Symmetry",
+            parent=self.iface.mainWindow()))
+        self.Symmetry_tool = SymmetryTool(self.iface)
+
+        #self.smartToolButton = QToolButton(self.toolbar)
+        #self.smartToolButton.setPopupMode(QToolButton.MenuButtonPopup)
+        #self.smartToolButton.addActions(actions)
+        #self.smartToolButton.setDefaultAction(actions[0])
+        #self.toolbar.addWidget(self.smartToolButton)
+        self.toolbar.addActions(actions)
 
         #Multi rotate
         self.add_action(
@@ -227,12 +249,13 @@ class Smart_editing_tools:
 
         self.iface.vectorMenu().removeAction(self.menu.menuAction())
 
-        if self.canvas.mapTool() in [self.SmartAngle_tool,self.AwesomeEditing_tool,self.BrainySpin_tool,self.MultiEditing_tool]:
+        if self.canvas.mapTool() in [self.SmartAngle_tool,self.AwesomeEditing_tool,self.BrainySpin_tool,self.Symmetry_tool,self.MultiEditing_tool]:
             self.canvas.unsetMapTool(self.canvas.mapTool())
             if self.oldTool:
                 self.canvas.setMapTool(self.oldTool)
 
         # remove the toolbar
+        #del self.smartToolButton
         del self.toolbar
 
     def deactivate(self):
@@ -248,7 +271,7 @@ class Smart_editing_tools:
         if layer is not None:
             if layer.type() == QgsMapLayer.VectorLayer and (layer.geometryType() == 2 or layer.geometryType() == 1) and layer.isEditable():
                 for action in self.actions:
-                    if action.whatsThis() in ["SmartAngle","AwesomeEditing","BrainySpin"]:
+                    if action.whatsThis() in ["SmartAngle","AwesomeEditing","BrainySpin","Symmetry"]:
                         action.setEnabled(True)
 
                 layer.editingStopped.connect(self.toggle)
@@ -267,19 +290,19 @@ class Smart_editing_tools:
                             self.canvas.setMapTool(self.oldTool)
 
                 for action in self.actions:
-                    if action.whatsThis() in ["SmartAngle","AwesomeEditing","BrainySpin"]:
+                    if action.whatsThis() in ["SmartAngle","AwesomeEditing","BrainySpin","Symmetry"]:
                         action.setEnabled(False)
                         action.setChecked(False)
 
         else:
-            if self.canvas.mapTool() in [self.SmartAngle_tool,self.AwesomeEditing_tool,self.BrainySpin_tool]:
+            if self.canvas.mapTool() in [self.SmartAngle_tool,self.AwesomeEditing_tool,self.BrainySpin_tool,self.Symmetry_tool]:
                 self.canvas.unsetMapTool(self.canvas.mapTool())
                 if self.oldTool:
                     self.canvas.setMapTool(self.oldTool)
 
             self.disconnection = None
             for action in self.actions:
-                if action.whatsThis() in ["SmartAngle","AwesomeEditing","BrainySpin"]:
+                if action.whatsThis() in ["SmartAngle","AwesomeEditing","BrainySpin","Symmetry"]:
                     action.setEnabled(False)
                     action.setChecked(False)
 
@@ -287,12 +310,14 @@ class Smart_editing_tools:
         for action in self.actions:
             if action.whatsThis() == bnName:
                 action.setChecked(True)
+                #if action in self.smartToolButton.actions():
+                    #self.smartToolButton.setDefaultAction(action)
             else:
                 action.setChecked(False)
 
     def setTool(self,tool):
         oldTool = self.canvas.mapTool()
-        if oldTool not in [self.SmartAngle_tool,self.AwesomeEditing_tool,self.BrainySpin_tool,self.MultiEditing_tool]:
+        if oldTool not in [self.SmartAngle_tool,self.AwesomeEditing_tool,self.BrainySpin_tool,self.Symmetry_tool,self.MultiEditing_tool]:
             self.oldTool = oldTool
         self.canvas.setMapTool(tool)
 
@@ -316,6 +341,13 @@ class Smart_editing_tools:
     def BrainySpinInit(self):
         self.setTool(self.BrainySpin_tool)
         self.pushToolButton("BrainySpin")
+
+    ##########
+    #Symmetry#
+    ##########
+    def SymmetryInit(self):
+        self.setTool(self.Symmetry_tool)
+        self.pushToolButton("Symmetry")
 
     ###############
     #Multi-editing#

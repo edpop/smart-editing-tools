@@ -150,6 +150,24 @@ def makeCircle(point,width,nbPoints):#making "circle"
 
     return moveCoords(point,pList,-1)
 
+def centerGeom(pList):
+    x = sum(point.x() for point in pList) / len(pList)
+    y = sum(point.y() for point in pList) / len(pList)
+
+    return QgsPoint(x, y)
+
+###
+def rbInit(canvas, color, width=1, lineStyle = Qt.SolidLine, brushStyle=Qt.NoBrush):
+    rb = QgsRubberBand(canvas)
+    rb.setColor(color)
+    rb.setWidth(width)
+    rb.setLineStyle(lineStyle)
+    rb.setBrushStyle(brushStyle)
+    return rb
+
+##########
+#DATABASE#
+##########
 def getLayerSRID(layer):
     t = layer.source()
     return t[t.find("srid=")+5:t.find("type=")-1]

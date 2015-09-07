@@ -2,18 +2,18 @@
 
 ## It's time to get some useful tools!
 
-* **Smart angle drawing** ![](tools/smart_angle_drawing.png =25x)
+* **Smart angle drawing** ![](images/smart_angle_drawing.png =25x)
 
  Holding down "Shift" key, you can draw a 
 pretty angle multiple 45 degrees between current and previous segments of your line or polygon geometry.
 
  The tool also help to draw a pretty angle between first and last segments.
 
-* **Awesome editing** ![](tools/awesome_editing.png =25x)
+* **Awesome editing** ![](images/awesome_editing.png =25x)
 
  This tool help to edit angles to right from existing lines and polygons.
 
-* **Brainy spin** ![](tools/brainy_spin.png =25x)
+* **Brainy spin** ![](images/brainy_spin.png =25x)
 
  Designed to rotate the lines and polygons.
 
@@ -22,8 +22,12 @@ pretty angle multiple 45 degrees between current and previous segments of your l
  Capturing of the segment, the figure turns relative to its center.
 
  The tool allows you to deploy a line or polygon parallel to the segment of other figure with respect to the selected segment.
+ 
+ * **Symmetry** ![](images/symmetry.png =25x)
 
-* **Multi-editing** ![](tools/multi_editing.png =25x)
+ A tool for determine the symmetry in feature and helps to rotate the feature correctly.
+
+* **Multi-editing** ![](images/multi_editing.png =25x)
 
  Holding down "Ctrl" key, select all needed features in several layers.
 
